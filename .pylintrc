@@ -1,0 +1,16 @@
+[MASTER]
+init-hook='import sys; sys.path.append("lucerna")'
+check-quote-consistency=yes
+
+[FORMAT]
+max-line-length=120
+
+[MESSAGES CONTROL]
+disable=fixme,
+        import-error,
+        too-few-public-methods
+
+[EXCEPTIONS]
+# Exceptions that will emit a warning when being caught. Defaults to
+# "Exception"
+overgeneral-exceptions=
