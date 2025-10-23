@@ -3,6 +3,7 @@ name = "lucerna"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
+    "colorama>=0.4.6",
     "gitpython>=3.1.45",
     "interrogate>=1.7.0",
     "pandas>=2.3.3",
