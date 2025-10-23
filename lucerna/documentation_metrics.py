@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Iterable, Callable, TypedDict
 
 import git
+from interrogate import coverage
 import pandas
 
 import cvar
@@ -69,6 +70,8 @@ class DocumentationMetricsCollect:
         with open(cvar.resources_dir / "readme_section_names.json", "r", encoding="utf-8") as f:
             self.readme_section_names = json.load(f)
 
+        self.readme = None
+
     @property
     def main_branch(self) -> str:
         """Main, master, or default branch of the repository."""
@@ -98,7 +101,7 @@ class DocumentationMetricsCollect:
         steps: Iterable[Callable[[], None]] = (
             self.get_readme_length,
             self.get_readme_completeness,
-            # self.get_docstring_coverage,
+            self.get_docstring_coverage,
             # self.get_inline_comments_ratio,
             # self.get_has_docs,
             # self.get_has_api_docs, # TODO implement
@@ -112,6 +115,10 @@ class DocumentationMetricsCollect:
         return self.metrics
 
     def _find_readme(self) -> str | None:
+        """Find README file in the repository root directory."""
+        if self.readme is not None:
+            return self.readme
+
         candidates = {"readme", "read_me"}
         extensions = {"", ".md", ".rst", ".txt", ".markdown"}
         try:
@@ -122,11 +129,13 @@ class DocumentationMetricsCollect:
                 for base in candidates:
                     for ext in extensions:
                         if name == base + ext:
+                            self.readme = str(entry)
                             return str(entry)
         except FileNotFoundError:
             LOG.error("Repository directory %r not found for repository %r", self.repo_dir, self.repo_name)
 
         LOG.warning("Could not find README file for repository %r in %r", self.repo_name, self.repo_dir)
+        self.readme = ""
         return None
 
     def get_readme_length(self) -> None:
@@ -154,6 +163,12 @@ class DocumentationMetricsCollect:
         hits = sum(1 for s in self.readme_section_names if s in content_lowercase)
         self.metrics["readme_completeness"] = (
                 hits / len(self.readme_section_names)) if self.readme_section_names else 0.0
+
+    def get_docstring_coverage(self) -> None:
+        """Calculate fraction of functions/methods with docstrings."""
+        cov = coverage.InterrogateCoverage(paths=[str(self.repo_dir)])
+        results = cov.get_coverage()
+        self.metrics["docstring_coverage"] = results.perc_covered / 100.0
 
 
 class DocumentationMetricsSchedule:
