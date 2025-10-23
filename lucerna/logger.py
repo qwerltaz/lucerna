@@ -2,6 +2,39 @@
 
 import logging
 import logging.config
+from typing import Optional
+
+from colorama import Fore, Style, init
+
+init()
+
+
+class _ColoredFormatter(logging.Formatter):
+    """Formatter that colors the levelname for terminal output."""
+
+    LEVEL_COLORS = {
+        logging.DEBUG: Fore.CYAN,
+        logging.INFO: Fore.GREEN,
+        logging.WARNING: Fore.YELLOW,
+        logging.ERROR: Fore.RED,
+        logging.CRITICAL: Fore.MAGENTA,
+    }
+
+    def __init__(self, fmt: Optional[str] = None, datefmt: Optional[str] = None):
+        super().__init__(fmt=fmt, datefmt=datefmt)
+
+    def format(self, record: logging.LogRecord) -> str:
+        levelno = record.levelno
+        color = self.LEVEL_COLORS.get(levelno, "")
+        if color:
+            original = record.levelname
+            try:
+                record.levelname = f"{color}{original}{Style.RESET_ALL}"
+                return super().format(record)
+            finally:
+                record.levelname = original
+        return super().format(record)
+
 
 _logging_config = {
     "version": 1,
@@ -13,13 +46,18 @@ _logging_config = {
         "verbose": {
             "format": "[%(levelname)s] %(asctime)s: %(message)s",
             "datefmt": "%Y-%m-%dT%H:%M:%S%z"
-        }
+        },
+        "color_verbose": {
+            "()": "logger._ColoredFormatter",
+            "format": "[%(levelname)s] %(asctime)s: %(message)s",
+            "datefmt": "%Y-%m-%dT%H:%M:%S%z",
+        },
     },
     "handlers": {
         "stdout": {
             "class": "logging.StreamHandler",
             "level": "DEBUG",
-            "formatter": "verbose",
+            "formatter": "color_verbose",
             "stream": "ext://sys.stdout"
         },
         "file": {
