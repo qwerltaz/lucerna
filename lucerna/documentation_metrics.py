@@ -2,6 +2,7 @@
 
 import os
 import re
+from enum import Enum
 
 import git
 
@@ -9,6 +10,10 @@ import cvar
 import logger
 
 LOG = logger.get()
+
+
+class DocumentationMetrics(Enum):
+    """Documentation metrics collected."""
 
 
 class DocumentationMetricsCollect:
