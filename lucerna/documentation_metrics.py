@@ -67,7 +67,7 @@ class DocumentationMetricsCollect:
         with open(cvar.resources_dir / "readme_section_names.json", "r", encoding="utf-8") as f:
             self.readme_section_names = json.load(f)
 
-        self.readme: str | None = None
+        self.readme_path: str | None = self._find_readme()
 
     @property
     def main_branch(self) -> str:
@@ -112,9 +112,6 @@ class DocumentationMetricsCollect:
 
         :return: Path to README file if found, else None.
         """
-        if self.readme is not None:
-            return self.readme
-
         candidates = {"readme", "read_me"}
         extensions = {"", ".md", ".rst", ".txt", ".markdown"}
         try:
@@ -125,7 +122,6 @@ class DocumentationMetricsCollect:
                 for base in candidates:
                     for ext in extensions:
                         if name == base + ext:
-                            self.readme = str(entry)
                             return str(entry)
         except FileNotFoundError:
             LOG.error("Repository directory %r not found for repository %r when finding readme",
@@ -133,12 +129,11 @@ class DocumentationMetricsCollect:
             raise
 
         LOG.warning("Could not find README file for repository %r in %r", self.repo_name, self.repo_dir)
-        self.readme = ""
         return None
 
     def get_readme_length(self) -> None:
         """Calculate length of README file in characters."""
-        readme_path = self._find_readme()
+        readme_path = self.readme_path
 
         if readme_path:
             with open(readme_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -149,7 +144,7 @@ class DocumentationMetricsCollect:
 
     def get_readme_completeness(self) -> None:
         """Score fraction of common sections present [0.0, 1.0]."""
-        readme_path = self._find_readme()
+        readme_path = self.readme_path
         if not readme_path:
             self.metrics["readme_completeness"] = 0.0
             return
