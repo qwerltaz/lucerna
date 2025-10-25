@@ -4,9 +4,10 @@ import logging
 import logging.config
 from typing import Optional
 
-from colorama import Fore, Style, init
+import colorama
+from colorama import Fore, Style
 
-init()
+colorama.init()
 
 
 class _ColoredFormatter(logging.Formatter):
@@ -77,11 +78,10 @@ _logging_config = {
     }
 }
 
+_log = logging.getLogger("local_logger")
+logging.config.dictConfig(_logging_config)
+
 
 def get() -> logging.Logger:
     """Get a configured logger instance."""
-
-    log = logging.getLogger("local_logger")
-    logging.config.dictConfig(_logging_config)
-
-    return log
+    return _log
