@@ -5,6 +5,7 @@ import os
 import re
 from pathlib import Path
 from typing import Iterable, Callable, TypedDict
+import subprocess
 
 import git
 from interrogate import coverage
@@ -23,7 +24,7 @@ class DocumentationMetrics(TypedDict):
     readme_length: int
     readme_completeness: float
     docstring_coverage: float
-    inline_comments_ratio: float
+    documentation_percentage: float
     has_docs: bool
     has_api_docs: bool
 
@@ -33,7 +34,7 @@ documentation_metrics_dictionary: DocumentationMetrics = {
     "readme_length": 0,
     "readme_completeness": 0.0,
     "docstring_coverage": 0.0,
-    "inline_comments_ratio": 0.0,
+    "documentation_percentage": 0.0,
     "has_docs": False,
     "has_api_docs": False,
 }
@@ -102,20 +103,21 @@ class DocumentationMetricsCollect:
             self.get_readme_length,
             self.get_readme_completeness,
             self.get_docstring_coverage,
-            # self.get_inline_comments_ratio,
+            self.get_documentation_percentage,
             # self.get_has_docs,
             # self.get_has_api_docs, # TODO implement
         )
         for step in steps:
-            try:
-                step()
-            except Exception as exc:
-                LOG.exception("Metric step %s failed for %s: %s", step.__name__, self.repo_name, exc)
+            step()
 
         return self.metrics
 
     def _find_readme(self) -> str | None:
-        """Find README file in the repository root directory."""
+        """
+        Find README file in the repository root directory.
+
+        :return: Path to README file if found, else None.
+        """
         if self.readme is not None:
             return self.readme
 
@@ -132,7 +134,9 @@ class DocumentationMetricsCollect:
                             self.readme = str(entry)
                             return str(entry)
         except FileNotFoundError:
-            LOG.error("Repository directory %r not found for repository %r", self.repo_dir, self.repo_name)
+            LOG.error("Repository directory %r not found for repository %r when finding readme",
+                      self.repo_dir, self.repo_name)
+            raise
 
         LOG.warning("Could not find README file for repository %r in %r", self.repo_name, self.repo_dir)
         self.readme = ""
@@ -169,6 +173,51 @@ class DocumentationMetricsCollect:
         cov = coverage.InterrogateCoverage(paths=[str(self.repo_dir)])
         results = cov.get_coverage()
         self.metrics["docstring_coverage"] = results.perc_covered / 100.0
+
+    def get_documentation_percentage(self) -> None:
+        """Compute fraction of documentation lines across all Python files in our repo."""
+        try:
+            result = subprocess.run(
+                [
+                    "pygount",
+                    "--suffix=py",
+                    str(self.repo_dir),
+                    "--format=json",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=180,
+            )
+
+            if result.returncode != 0:
+                LOG.error(
+                    "pygount exited with code %s for %s: %s",
+                    result.returncode,
+                    self.repo_name,
+                    (result.stderr or "").strip(),
+                )
+                raise Exception("pygount execution failed.")
+
+            data = json.loads(result.stdout or "{}")
+            summary = data.get("summary") or {}
+
+            documentation_percentage = summary.get("totalDocumentationPercentage")
+
+            if not isinstance(documentation_percentage, float):
+                LOG.error("Invalid documentation percentage value: %s", documentation_percentage)
+
+            self.metrics["documentation_percentage"] = documentation_percentage / 100.0
+
+        except FileNotFoundError:
+            LOG.error("pygount executable not found.")
+            raise
+        except json.JSONDecodeError as exc:
+            LOG.exception("Failed to parse pygount JSON for %s: %s", self.repo_name, exc)
+            raise
+        except Exception as exc:
+            LOG.exception("pygount analysis failed for %s: %s", self.repo_name, exc)
+            raise
 
 
 class DocumentationMetricsSchedule:
