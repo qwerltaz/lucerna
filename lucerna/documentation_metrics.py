@@ -192,31 +192,37 @@ class DocumentationMetricsCollect:
 
             if result.returncode != 0:
                 LOG.error(
-                    "pygount exited with code %s for %s: %s",
+                    "Pygount exited with code %s for %s: %s",
                     result.returncode,
                     self.repo_name,
                     (result.stderr or "").strip(),
                 )
-                raise Exception("pygount execution failed.")
+                raise Exception("Pygount execution failed.")
 
             data = json.loads(result.stdout or "{}")
             summary = data.get("summary") or {}
+
+            total_code = summary.get("totalCodeCount")
+            if not isinstance(total_code, int) or total_code == 0:
+                LOG.error("Pygount found no source code for: %s", self.repo_name)
+                raise Exception(f"Pygount found no source code for: {self.repo_name}")
 
             documentation_percentage = summary.get("totalDocumentationPercentage")
 
             if not isinstance(documentation_percentage, float):
                 LOG.error("Invalid documentation percentage value: %s", documentation_percentage)
+                raise
 
             self.metrics["documentation_percentage"] = documentation_percentage / 100.0
 
         except FileNotFoundError:
-            LOG.error("pygount executable not found.")
+            LOG.error("Pygount executable not found.")
             raise
         except json.JSONDecodeError as exc:
             LOG.exception("Failed to parse pygount JSON for %s: %s", self.repo_name, exc)
             raise
         except Exception as exc:
-            LOG.exception("pygount analysis failed for %s: %s", self.repo_name, exc)
+            LOG.exception("Pygount analysis failed for %s: %s", self.repo_name, exc)
             raise
 
 
