@@ -70,7 +70,7 @@ class DocumentationMetricsCollect:
         with open(cvar.resources_dir / "readme_section_names.json", "r", encoding="utf-8") as f:
             self.readme_section_names = json.load(f)
 
-        self.readme = None
+        self.readme: str | None = None
 
     @property
     def main_branch(self) -> str:
