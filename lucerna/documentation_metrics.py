@@ -25,8 +25,6 @@ class DocumentationMetrics(TypedDict):
     readme_completeness: float
     docstring_coverage: float
     documentation_percentage: float
-    has_docs: bool
-    has_api_docs: bool
 
 
 documentation_metrics_dictionary: DocumentationMetrics = {
@@ -35,8 +33,6 @@ documentation_metrics_dictionary: DocumentationMetrics = {
     "readme_completeness": 0.0,
     "docstring_coverage": 0.0,
     "documentation_percentage": 0.0,
-    "has_docs": False,
-    "has_api_docs": False,
 }
 
 
@@ -104,8 +100,6 @@ class DocumentationMetricsCollect:
             self.get_readme_completeness,
             self.get_docstring_coverage,
             self.get_documentation_percentage,
-            # self.get_has_docs,
-            # self.get_has_api_docs, # TODO implement
         )
         for step in steps:
             step()
@@ -143,6 +137,7 @@ class DocumentationMetricsCollect:
         return None
 
     def get_readme_length(self) -> None:
+        """Calculate length of README file in characters."""
         readme_path = self._find_readme()
 
         if readme_path:
@@ -226,34 +221,29 @@ class DocumentationMetricsCollect:
             raise
 
 
-class DocumentationMetricsSchedule:
-    """Schedule documentation metrics collection for a set of repositories."""
+def schedule_documentation_metrics(repo_urls: Iterable[str], output_csv: Path | None = None) -> None:
+    """Schedule documentation metrics collection for a set of repositories and write to CSV."""
+    output_csv = output_csv or (cvar.data_dir / "documentation_metrics.csv")
+    output_csv.parent.mkdir(parents=True, exist_ok=True)
 
-    def __init__(self, repo_urls: Iterable[str], output_csv: Path | None = None):
-        self.repo_urls = list(repo_urls)
+    metrics_list: list[DocumentationMetrics] = []
+    for url in repo_urls:
+        try:
+            collector = DocumentationMetricsCollect(url)
+            repo_metrics = collector.collect_metrics()
+            metrics_list.append(repo_metrics.copy())
+        except Exception as exc:
+            LOG.exception("Failed to collect metrics for %s: %s", url, exc)
+            _save_metrics(metrics_list, output_csv)
+            raise
 
-        self.output_csv = output_csv or (
-                cvar.data_dir / "documentation_metrics.csv")
-        self.output_csv.parent.mkdir(parents=True, exist_ok=True)
+    _save_metrics(metrics_list, output_csv)
 
-    def run(self) -> None:
-        metrics_list: list[DocumentationMetrics] = []
-        for url in self.repo_urls:
-            try:
-                collector = DocumentationMetricsCollect(url)
-                repo_metrics = collector.collect_metrics()
-                metrics_list.append(repo_metrics.copy())
-            except Exception as exc:
-                LOG.exception("Failed to collect metrics for %s: %s", url, exc)
-                self.save_metrics(metrics_list)
-                raise exc
 
-        self.save_metrics(metrics_list)
-        LOG.info("Wrote %d rows to %s", len(metrics_list), self.output_csv)
-
-    def save_metrics(self, metrics_list: list[DocumentationMetrics]) -> None:
-        df = pandas.DataFrame(metrics_list, columns=tuple(documentation_metrics_dictionary.keys()))
-        df.to_csv(self.output_csv, index=False)
+def _save_metrics(metrics_list: list[DocumentationMetrics], output_csv: Path | None):
+    df = pandas.DataFrame(metrics_list, columns=tuple(documentation_metrics_dictionary.keys()))
+    df.to_csv(output_csv, index=False)
+    LOG.info("Saved documentation metrics. Wrote %d rows to %s", len(metrics_list), output_csv)
 
 
 def _example_usage():
@@ -261,8 +251,7 @@ def _example_usage():
         "https://github.com/qwerltaz/metric-dynamics",
         "https://github.com/qwerltaz/lucerna"
     ]
-    scheduler = DocumentationMetricsSchedule(repo_list)
-    scheduler.run()
+    schedule_documentation_metrics(repo_list)
 
 
 if __name__ == "__main__":
