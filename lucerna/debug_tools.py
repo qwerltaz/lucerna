@@ -9,4 +9,4 @@ def debug_raise() -> None | NoReturn:
     is_in_exception_handler = sys.exc_info()[0] is not None
 
     if is_in_exception_handler and __debug__:
-        raise
+        raise  # pylint: disable=misplaced-bare-raise
