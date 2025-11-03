@@ -72,9 +72,17 @@ class DocumentationMetricsCollect:
 
     @property
     def main_branch(self) -> str:
-        """Main, master, or default branch of the repository."""
+        """Default, main, or master branch of the repository."""
         if not self.repo:
             raise ValueError("Repository must be initialized before retrieving the main branch.")
+
+        # Default branch.
+        origin_info = self.repo.git.remote("show", "origin")
+        matches = re.search(r"\s*HEAD branch:\s*(.*)", origin_info)
+        if matches:
+            default_branch = matches.group(1).strip()
+            if default_branch:
+                return default_branch
 
         candidates = ("main", "master")
         local_heads = {head.name for head in self.repo.heads}
@@ -82,16 +90,8 @@ class DocumentationMetricsCollect:
             if candidate in local_heads:
                 return candidate
 
-        # Default branch.
-        show_result = self.repo.git.remote("show", "origin")
-        matches = re.search(r"\s*HEAD branch:\s*(.*)", show_result)
-        if matches:
-            default_branch = matches.group(1).strip()
-            if default_branch:
-                return default_branch
-
-        error_message = f"Could not find main branch for repository {self.repo_name}"
-        LOG.error(error_message)
+        error_message = (f"Could not find the default, main, or master branch for repository '{self.repo_name}' "
+                         f"from available branches {local_heads}.")
         raise ValueError(error_message)
 
     def collect_metrics(self) -> DocumentationMetrics:
