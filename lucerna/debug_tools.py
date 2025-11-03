@@ -1,4 +1,8 @@
-"""Tools to perform actions and checks only when Python debugging is enabled (the variable __debug__ is true)."""
+"""
+Tools to perform actions and checks only when Python debugging is enabled (the variable __debug__ is true).
+
+To disable debugging, run Python with the -O (optimize) flag.
+"""
 
 from typing import NoReturn
 import sys
