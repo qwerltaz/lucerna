@@ -41,12 +41,10 @@ _logging_config = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
-        "simple": {
-            "format": "[%(levelname)s] %(message)s"
-        },
+        "simple": {"format": "[%(levelname)s] %(message)s"},
         "verbose": {
             "format": "[%(levelname)s] %(asctime)s: %(message)s",
-            "datefmt": "%Y-%m-%dT%H:%M:%S%z"
+            "datefmt": "%Y-%m-%dT%H:%M:%S%z",
         },
         "color_verbose": {
             "()": "logger._ColoredFormatter",
@@ -59,7 +57,7 @@ _logging_config = {
             "class": "logging.StreamHandler",
             "level": "DEBUG",
             "formatter": "color_verbose",
-            "stream": "ext://sys.stdout"
+            "stream": "ext://sys.stdout",
         },
         "file": {
             "class": "logging.FileHandler",
@@ -67,15 +65,16 @@ _logging_config = {
             "formatter": "verbose",
             "filename": ".log",
             "mode": "w",
-            "encoding": "utf-8"
-        }
+            "encoding": "utf-8",
+        },
     },
+    # Propagate this logger and library loggers, then root logs to stdout and file.
     "loggers": {
-        "local_logger": {
-            "level": "DEBUG",
-            "handlers": ["stdout", "file"]
-        }
-    }
+        "local_logger": {"level": "DEBUG", "propagate": True},
+        "git": {"level": "DEBUG", "propagate": True},
+        "git.cmd": {"level": "DEBUG", "propagate": True},
+    },
+    "root": {"level": "DEBUG", "handlers": ["stdout", "file"]},
 }
 
 _log = logging.getLogger("local_logger")
