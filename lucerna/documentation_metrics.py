@@ -153,9 +153,9 @@ class DocumentationMetricsCollect:
         with open(readme_path, "r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
 
-        content_lowercase = content.lower()
         # TODO it just checks if the section name appears anywhere, maybe try detecting only in sections?
-        hits = sum(1 for s in self.readme_section_names if s in content_lowercase)
+        hits = sum(1 for s in self.readme_section_names if re.search(s, content, re.RegexFlag.IGNORECASE))
+
         self.metrics["readme_completeness"] = (
                 hits / len(self.readme_section_names)) if self.readme_section_names else 0.0
 
