@@ -8,6 +8,7 @@ from typing import Iterable, Callable, TypedDict
 import subprocess
 
 import git
+from git import GitCommandError
 from interrogate import coverage
 import pandas
 
@@ -23,6 +24,7 @@ class DocumentationMetrics(TypedDict):
 
     repo_name: str
     readme_length: int
+    github_wiki_length: int
     readme_completeness: float
     docstring_coverage: float
     documentation_percentage: float
@@ -31,6 +33,7 @@ class DocumentationMetrics(TypedDict):
 documentation_metrics_dictionary: DocumentationMetrics = {
     "repo_name": "",
     "readme_length": 0,
+    "github_wiki_length": 0,
     "readme_completeness": 0.0,
     "docstring_coverage": 0.0,
     "documentation_percentage": 0.0,
@@ -70,6 +73,8 @@ class DocumentationMetricsCollect:
 
         self.readme_path: str | None = self._find_readme()
 
+        self.wiki_dir: Path = self.repo_dir.parent / f"{self.repo_name}.wiki"
+
     @property
     def main_branch(self) -> str:
         """Default, main, or master branch of the repository."""
@@ -98,6 +103,7 @@ class DocumentationMetricsCollect:
         """Collect documentation metrics with per-metric fault isolation."""
         steps: Iterable[Callable[[], None]] = (
             self.get_readme_length,
+            self.get_github_wiki_length,
             self.get_readme_completeness,
             self.get_docstring_coverage,
             self.get_documentation_percentage,
@@ -133,15 +139,96 @@ class DocumentationMetricsCollect:
         return None
 
     def get_readme_length(self) -> None:
-        """Calculate length of README file in characters."""
+        """Calculate length of README file in bytes."""
         readme_path = self.readme_path
 
         if readme_path:
-            with open(readme_path, "r", encoding="utf-8", errors="ignore") as f:
-                content = f.read()
-            self.metrics["readme_length"] = len(content)
+            self.metrics["readme_length"] = os.path.getsize(readme_path)
         else:
             self.metrics["readme_length"] = 0
+
+    def get_github_wiki_length(self) -> None:
+        """Calculate total byte length of the GitHub wiki pages; 0 if no wiki."""
+        wiki_url = self._github_wiki_url()
+        if not wiki_url:
+            self.metrics["github_wiki_length"] = 0
+            return
+
+        try:
+            if os.path.isdir(self.wiki_dir) and os.listdir(self.wiki_dir):
+                wiki_repo = git.Repo(self.wiki_dir)
+                try:
+                    wiki_repo.remotes.origin.fetch()
+                except Exception as exc:
+                    LOG.warning("Fetch of wiki for `%s`: %s", self.repo_name, exc)
+            else:
+                git.Repo.clone_from(wiki_url, self.wiki_dir)
+        except GitCommandError:
+            LOG.info("Wiki does not exist for %s", self.repo_name)
+            self.metrics["github_wiki_length"] = 0
+            return
+        except Exception as exc:
+            LOG.warning("Wiki not found for `%s`: %s", self.repo_name, exc)
+            self.metrics["github_wiki_length"] = 0
+            return
+
+        wiki_files_text_extensions = {
+            ".md",
+            ".markdown",
+            ".mdown",
+            ".mkdn",
+            ".rst",
+            ".txt",
+            ".adoc",
+            ".asciidoc",
+            ".adoc",
+            ".asc",
+            ".mediawiki",
+            ".wiki",
+            ".textile",
+            ".creole",
+            ".org",
+            ".pod",
+        }
+        total_bytes = 0
+        try:
+            for root, dirs, files in os.walk(self.wiki_dir):
+                if ".git" in dirs:
+                    dirs.remove(".git")
+
+                for file_name in files:
+                    extension = Path(file_name).suffix.lower()
+                    if extension not in wiki_files_text_extensions:
+                        continue
+                    file_path = Path(root) / file_name
+                    try:
+                        total_bytes += os.path.getsize(file_path)
+                    except Exception as exc:
+                        LOG.debug("Skipping unreadable wiki file %s: %s", file_path, exc)
+        except Exception as exc:
+            LOG.debug("Failed while scanning wiki for %s: %s", self.repo_name, exc)
+
+        self.metrics["github_wiki_length"] = total_bytes
+
+    def _github_wiki_url(self) -> str | None:
+        """Build the wiki git URL if the repository is hosted on GitHub; else None."""
+        url = self.repo_url.rstrip("/")
+
+        base = url[:-4] if url.endswith(".git") else url
+
+        # HTTPS form: https://github.com/owner/repo
+        https_match = re.match(r"^https://github\.com/([^/]+)/([^/]+)$", base, re.IGNORECASE)
+        if https_match:
+            owner, repo = https_match.groups()
+            return f"https://github.com/{owner}/{repo}.wiki.git"
+
+        # SSH form: git@github.com:owner/repo
+        ssh_match = re.match(r"^git@github\.com:([^/]+)/([^/]+)$", base, re.IGNORECASE)
+        if ssh_match:
+            owner, repo = ssh_match.groups()
+            return f"git@github.com:{owner}/{repo}.wiki.git"
+
+        return None
 
     def get_readme_completeness(self) -> None:
         """Score fraction of common sections present [0.0, 1.0]."""
@@ -244,6 +331,7 @@ def _save_metrics(metrics_list: list[DocumentationMetrics], output_csv: Path | N
 
 def _example_usage():
     repo_list = [
+        "https://github.com/certifi/python-certifi/",
         "https://github.com/qwerltaz/metric-dynamics",
         "https://github.com/qwerltaz/lucerna"
     ]
