@@ -222,12 +222,6 @@ class DocumentationMetricsCollect:
             owner, repo = https_match.groups()
             return f"https://github.com/{owner}/{repo}.wiki.git"
 
-        # SSH form: git@github.com:owner/repo
-        ssh_match = re.match(r"^git@github\.com:([^/]+)/([^/]+)$", base, re.IGNORECASE)
-        if ssh_match:
-            owner, repo = ssh_match.groups()
-            return f"git@github.com:{owner}/{repo}.wiki.git"
-
         return None
 
     def get_readme_completeness(self) -> None:
