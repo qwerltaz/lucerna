@@ -7,7 +7,6 @@ Save the processed data.
 """
 
 import json
-import re
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -17,42 +16,22 @@ import logger
 
 LOG = logger.get()
 
-PROJECT_URLS_PREFIX_CANDIDATES = [  # From most to least likely to be the repo url.
-    "homepage",  # Often, the repo is linked here.
-    "source",
-    "source code",
-    "github",
-    "repository",
-    "code",
-    "home",
-    "documentation",
-]
-
-
-def _is_valid_repo_url(url: str) -> bool:
-    repo_regex = r"^https://github\.com/([^/]+)/([^/]+)$"
-    ret = bool(re.match(repo_regex, url))
-    if not ret:
-        LOG.debug("URL does not match git repo pattern: %s", url)
-
-    return ret
-
 
 def _process_repo_url(url: str | None) -> str | None:
     """Normalize various GitHub URLs to https://github.com/{owner}/{repo}"""
     if not isinstance(url, str) or not url:
         return None
 
-    raw = url.strip()
-    parsed = urlparse(raw)
+    url_stripped = url.strip()
+    parsed = urlparse(url_stripped)
 
     if parsed.netloc.lower() != "github.com":
-        LOG.debug("URL is not a GitHub URL: %s", raw)
+        LOG.debug("URL is not a GitHub URL: %s", url_stripped)
         return None
 
     parts = [p for p in parsed.path.split("/") if p]
     if len(parts) < 2:
-        LOG.debug("GitHub URL does not contain owner and repo: %s", raw)
+        LOG.debug("GitHub URL does not contain owner and repo: %s", url_stripped)
         return None
 
     owner, repo = parts[0], parts[1]
@@ -60,7 +39,7 @@ def _process_repo_url(url: str | None) -> str | None:
         repo = repo[:-4]
     normalized = f"https://github.com/{owner}/{repo}"
 
-    return normalized if _is_valid_repo_url(normalized) else None
+    return normalized
 
 
 def _extract_repo_url(row: pd.Series) -> str | None:
@@ -73,11 +52,9 @@ def _extract_repo_url(row: pd.Series) -> str | None:
             continue
         key, value = item.split(",", 1)
         key, value = map(str.strip, (key, value))
-        for prefix in PROJECT_URLS_PREFIX_CANDIDATES:
-            if key.lower().startswith(prefix):
-                processed = _process_repo_url(value)
-                if processed:
-                    return processed
+        processed = _process_repo_url(value)
+        if processed:
+            return processed
 
     download_url = row.get("download_url")
     processed_download = _process_repo_url(download_url)
