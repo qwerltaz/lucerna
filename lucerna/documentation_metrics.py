@@ -18,6 +18,9 @@ import logger
 
 LOG = logger.get()
 
+with open(cvar.resources_dir / "wiki_file_text_extensions.json", "r", encoding="utf-8") as f:
+    WIKI_FILE_TEXT_EXTENSIONS = set(json.load(f))
+
 
 class DocumentationMetrics(TypedDict):
     """Type for documentation metrics dictionary."""
@@ -174,24 +177,6 @@ class DocumentationMetricsCollect:
             self.metrics["github_wiki_length"] = 0
             return
 
-        wiki_files_text_extensions = {
-            ".md",
-            ".markdown",
-            ".mdown",
-            ".mkdn",
-            ".rst",
-            ".txt",
-            ".adoc",
-            ".asciidoc",
-            ".adoc",
-            ".asc",
-            ".mediawiki",
-            ".wiki",
-            ".textile",
-            ".creole",
-            ".org",
-            ".pod",
-        }
         total_characters = 0
         try:
             for root, dirs, files in os.walk(self.wiki_dir):
@@ -200,7 +185,7 @@ class DocumentationMetricsCollect:
 
                 for file_name in files:
                     extension = Path(file_name).suffix.lower()
-                    if extension not in wiki_files_text_extensions:
+                    if extension not in WIKI_FILE_TEXT_EXTENSIONS:
                         continue
                     file_path = Path(root) / file_name
                     try:

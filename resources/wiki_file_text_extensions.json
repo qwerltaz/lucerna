@@ -1,0 +1,18 @@
+[
+  ".md",
+  ".markdown",
+  ".mdown",
+  ".mkdn",
+  ".rst",
+  ".txt",
+  ".adoc",
+  ".asciidoc",
+  ".adoc",
+  ".asc",
+  ".mediawiki",
+  ".wiki",
+  ".textile",
+  ".creole",
+  ".org",
+  ".pod"
+]
