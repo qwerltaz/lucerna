@@ -139,16 +139,18 @@ class DocumentationMetricsCollect:
         return None
 
     def get_readme_length(self) -> None:
-        """Calculate length of README file in bytes."""
+        """Calculate length of README file in characters."""
         readme_path = self.readme_path
 
         if readme_path:
-            self.metrics["readme_length"] = os.path.getsize(readme_path)
+            with open(readme_path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+            self.metrics["readme_length"] = len(content)
         else:
             self.metrics["readme_length"] = 0
 
     def get_github_wiki_length(self) -> None:
-        """Calculate total byte length of the GitHub wiki pages; 0 if no wiki."""
+        """Calculate total character length of the GitHub wiki pages; 0 if no wiki."""
         wiki_url = self._github_wiki_url()
         if not wiki_url:
             self.metrics["github_wiki_length"] = 0
@@ -190,7 +192,7 @@ class DocumentationMetricsCollect:
             ".org",
             ".pod",
         }
-        total_bytes = 0
+        total_characters = 0
         try:
             for root, dirs, files in os.walk(self.wiki_dir):
                 if ".git" in dirs:
@@ -202,13 +204,14 @@ class DocumentationMetricsCollect:
                         continue
                     file_path = Path(root) / file_name
                     try:
-                        total_bytes += os.path.getsize(file_path)
+                        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                            total_characters += len(f.read())
                     except Exception as exc:
                         LOG.debug("Skipping unreadable wiki file %s: %s", file_path, exc)
         except Exception as exc:
             LOG.debug("Failed while scanning wiki for %s: %s", self.repo_name, exc)
 
-        self.metrics["github_wiki_length"] = total_bytes
+        self.metrics["github_wiki_length"] = total_characters
 
     def _github_wiki_url(self) -> str | None:
         """Build the wiki git URL if the repository is hosted on GitHub; else None."""
