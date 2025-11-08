@@ -87,7 +87,9 @@ def main():
 
     security_libraries = security_libraries.dropna(subset=["repo_url"])
 
-    # No pandas.to_json as it adds unwanted escape characters before slashes.
+    security_libraries = security_libraries.drop_duplicates(subset=["repo_url"])
+
+    # No pandas.to_json, as it adds unwanted escape characters before slashes.
     with open(security_libraries_processed_path, "w", encoding="utf-8") as f:
         json.dump(
             security_libraries.to_dict(orient="records"),
