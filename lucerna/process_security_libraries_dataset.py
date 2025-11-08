@@ -112,7 +112,7 @@ def process_raw(file_name: str, processed_file_name: str):
 def _fetch_dependents_counts(
     name: str | None,
     version: str | None,
-) -> Dict[str, int]:
+) -> Dict[str, int] | None:
     """Call deps.dev API to fetch dependent counts for a PyPI package version.
 
     :param name: The name of the PyPI package.
@@ -125,12 +125,16 @@ def _fetch_dependents_counts(
     url = f"{base_url}/{name}/versions/{version}:dependents"
 
     req = urllib.request.Request(url, method="GET")
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        if resp.status != 200:
-            raise urllib.error.HTTPError(
-                url, resp.status, "Bad status", resp.headers, None
-            )
-        data = json.loads(resp.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            if resp.status != 200:
+                raise urllib.error.HTTPError(
+                    url, resp.status, "Bad status", resp.headers, None
+                )
+            data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError:
+        LOG.info("Skipping package dependents as it no longer exists: %s", name)
+        return None
 
     assert list(data.keys()) == DEPENDENTS_RESPONSE_EXPECTED_KEYS, (
         f"Unexpected keys in dependents response: {data}"
@@ -153,12 +157,13 @@ def add_dependents_col(file_name: str, processed_file_name: str):
         result_type="expand",
     )
 
-    for col in DEPENDENTS_RESPONSE_EXPECTED_KEYS:
-        assert col in counts_df.columns, f"Missing expected dependents column: {col}"
-
     security_libraries[DEPENDENTS_RESPONSE_EXPECTED_KEYS] = counts_df[
         DEPENDENTS_RESPONSE_EXPECTED_KEYS
     ]
+
+    security_libraries = security_libraries.dropna(
+        subset=["dependentCount", "directDependentCount", "indirectDependentCount"]
+    )
 
     # Turn Nan into JSON-friendly None.
     security_libraries = security_libraries.where(pd.notnull(security_libraries), None)
