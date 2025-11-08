@@ -7,7 +7,9 @@ Save the processed data.
 """
 
 import json
+from typing import Dict, Optional
 from urllib.parse import urlparse
+import urllib
 
 import pandas as pd
 
@@ -15,6 +17,12 @@ import logger
 import cvar
 
 LOG = logger.get()
+
+DEPENDENTS_RESPONSE_EXPECTED_KEYS = [
+    "dependentCount",
+    "directDependentCount",
+    "indirectDependentCount",
+]
 
 
 def _process_repo_url(url: str | None) -> str | None:
@@ -69,18 +77,15 @@ def _extract_repo_url(row: pd.Series) -> str | None:
     return None
 
 
-def process_raw():
+def process_raw(file_name: str, processed_file_name: str):
     """Process the raw security libraries dataset."""
-    raw_file_name = "security_libraries_raw"
-
-    processed_file_name = raw_file_name.removesuffix("_raw")
-    raw_path = (cvar.data_dir / raw_file_name).with_suffix(".json")
+    file_path = (cvar.data_dir / file_name).with_suffix(".json")
     processed_path = (cvar.data_dir / processed_file_name).with_suffix(".json")
 
-    with open(raw_path, "r", encoding="utf-8") as f:
-        security_libraries_raw_json = json.load(f)
-
-    security_libraries = pd.DataFrame(security_libraries_raw_json)
+    # upload_time dtype defaults to timestamp, which is not JSON serializable.
+    security_libraries: pd.DataFrame = pd.read_json(
+        file_path, dtype={"upload_time": str}
+    )
 
     security_libraries["repo_url"] = security_libraries.apply(_extract_repo_url, axis=1)
 
@@ -91,6 +96,7 @@ def process_raw():
     security_libraries = security_libraries.dropna(subset=["repo_url"])
     security_libraries = security_libraries.drop_duplicates(subset=["repo_url"])
 
+    # Turn Nan into JSON-friendly None.
     security_libraries = security_libraries.where(pd.notnull(security_libraries), None)
 
     # No pandas.to_json, as it adds unwanted escape characters before slashes.
@@ -104,5 +110,81 @@ def process_raw():
         )
 
 
+def _fetch_dependents_counts(
+    name: str | None,
+    version: str | None,
+) -> Dict[str, int]:
+    """Call deps.dev API to fetch dependent counts for a PyPI package version.
+
+    :param name: The name of the PyPI package.
+    :param version: The version of the PyPI package.
+    """
+    assert name is not None, "Package name must be provided"
+    assert version is not None, "Package version must be provided"
+
+    base_url = "https://api.deps.dev/v3alpha/systems/pypi/packages"
+    url = f"{base_url}/{name}/versions/{version}:dependents"
+
+    req = urllib.request.Request(url, method="GET")
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        if resp.status != 200:
+            raise urllib.error.HTTPError(
+                url, resp.status, "Bad status", resp.headers, None
+            )
+        data = json.loads(resp.read().decode("utf-8"))
+
+    assert list(data.keys()) == DEPENDENTS_RESPONSE_EXPECTED_KEYS, (
+        f"Unexpected keys in dependents response: {data}"
+    )
+
+    LOG.debug("Fetched dependents counts for %s==%s: %s", name, version, data)
+    return data
+
+
+def add_dependents_col(file_name: str, processed_file_name: str):
+    """Augment processed dataset with deps.dev dependent count columns and write JSON."""
+    file_path = (cvar.data_dir / file_name).with_suffix(".json")
+    processed_file_path = (cvar.data_dir / processed_file_name).with_suffix(".json")
+
+    security_libraries: pd.DataFrame = pd.read_json(
+        file_path, dtype={"upload_time": str}
+    )
+
+    counts_df = security_libraries.apply(
+        lambda r: _fetch_dependents_counts(r.get("name"), r.get("version")),
+        axis=1,
+        result_type="expand",
+    )
+
+    for col in DEPENDENTS_RESPONSE_EXPECTED_KEYS:
+        assert col in counts_df.columns, f"Missing expected dependents column: {col}"
+
+    security_libraries[DEPENDENTS_RESPONSE_EXPECTED_KEYS] = counts_df[
+        DEPENDENTS_RESPONSE_EXPECTED_KEYS
+    ]
+
+    # Turn Nan into JSON-friendly None.
+    security_libraries = security_libraries.where(pd.notnull(security_libraries), None)
+
+    with open(processed_file_path, "w", encoding="utf-8") as f:
+        json.dump(
+            security_libraries.to_dict(orient="records"),
+            f,
+            indent=4,
+            ensure_ascii=False,
+            allow_nan=False,
+        )
+
+
+def main():
+    """End-to-end: process raw then augment with dependents counts."""
+    file_name = "security_libraries_tiny"
+    raw_file_name = file_name + "_raw"
+    file_name_with_dependents_count = file_name + "_dependents_count"
+
+    process_raw(raw_file_name, file_name)
+    add_dependents_col(file_name, file_name_with_dependents_count)
+
+
 if __name__ == "__main__":
-    process_raw()
+    main()
