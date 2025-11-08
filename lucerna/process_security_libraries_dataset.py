@@ -7,7 +7,8 @@ Save the processed data.
 """
 
 import json
-from typing import Dict, Optional
+from pathlib import Path
+from typing import Dict
 from urllib.parse import urlparse
 import urllib
 
@@ -82,10 +83,7 @@ def process_raw(file_name: str, processed_file_name: str):
     file_path = (cvar.data_dir / file_name).with_suffix(".json")
     processed_path = (cvar.data_dir / processed_file_name).with_suffix(".json")
 
-    # upload_time dtype defaults to timestamp, which is not JSON serializable.
-    security_libraries: pd.DataFrame = pd.read_json(
-        file_path, dtype={"upload_time": str}
-    )
+    security_libraries = load_security_libraries_df(file_path)
 
     security_libraries["repo_url"] = security_libraries.apply(_extract_repo_url, axis=1)
 
@@ -106,8 +104,9 @@ def process_raw(file_name: str, processed_file_name: str):
             f,
             indent=4,
             ensure_ascii=False,
-            allow_nan=False,
         )
+
+    LOG.info("Processed raw dataset and saved to %s", processed_path)
 
 
 def _fetch_dependents_counts(
@@ -146,9 +145,7 @@ def add_dependents_col(file_name: str, processed_file_name: str):
     file_path = (cvar.data_dir / file_name).with_suffix(".json")
     processed_file_path = (cvar.data_dir / processed_file_name).with_suffix(".json")
 
-    security_libraries: pd.DataFrame = pd.read_json(
-        file_path, dtype={"upload_time": str}
-    )
+    security_libraries = load_security_libraries_df(file_path)
 
     counts_df = security_libraries.apply(
         lambda r: _fetch_dependents_counts(r.get("name"), r.get("version")),
@@ -172,13 +169,24 @@ def add_dependents_col(file_name: str, processed_file_name: str):
             f,
             indent=4,
             ensure_ascii=False,
-            allow_nan=False,
         )
+
+    LOG.info(
+        "Augmented dataset with dependents counts and saved to %s", processed_file_path
+    )
+
+
+def load_security_libraries_df(file_path: Path | str) -> pd.DataFrame:
+    # upload_time dtype defaults to timestamp, which is not JSON serializable.
+    security_libraries: pd.DataFrame = pd.read_json(
+        file_path, dtype={"upload_time": str, "metadata_version": str}
+    )
+    return security_libraries
 
 
 def main():
     """End-to-end: process raw then augment with dependents counts."""
-    file_name = "security_libraries_tiny"
+    file_name = "security_libraries"
     raw_file_name = file_name + "_raw"
     file_name_with_dependents_count = file_name + "_dependents_count"
 
