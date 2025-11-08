@@ -7,12 +7,12 @@ Save the processed data.
 """
 
 import json
-from pathlib import Path
 from urllib.parse import urlparse
 
 import pandas as pd
 
 import logger
+import cvar
 
 LOG = logger.get()
 
@@ -69,12 +69,15 @@ def _extract_repo_url(row: pd.Series) -> str | None:
     return None
 
 
-def main():
+def process_raw():
     """Process the raw security libraries dataset."""
-    security_libraries_raw_path = Path("../data/security_libraries_raw.json")
-    security_libraries_processed_path = Path("../data/security_libraries.json")
+    raw_file_name = "security_libraries_raw"
 
-    with open(security_libraries_raw_path, "r", encoding="utf-8") as f:
+    processed_file_name = raw_file_name.removesuffix("_raw")
+    raw_path = (cvar.data_dir / raw_file_name).with_suffix(".json")
+    processed_path = (cvar.data_dir / processed_file_name).with_suffix(".json")
+
+    with open(raw_path, "r", encoding="utf-8") as f:
         security_libraries_raw_json = json.load(f)
 
     security_libraries = pd.DataFrame(security_libraries_raw_json)
@@ -86,18 +89,20 @@ def main():
     )
 
     security_libraries = security_libraries.dropna(subset=["repo_url"])
-
     security_libraries = security_libraries.drop_duplicates(subset=["repo_url"])
 
+    security_libraries = security_libraries.where(pd.notnull(security_libraries), None)
+
     # No pandas.to_json, as it adds unwanted escape characters before slashes.
-    with open(security_libraries_processed_path, "w", encoding="utf-8") as f:
+    with open(processed_path, "w", encoding="utf-8") as f:
         json.dump(
             security_libraries.to_dict(orient="records"),
             f,
             indent=4,
             ensure_ascii=False,
+            allow_nan=False,
         )
 
 
 if __name__ == "__main__":
-    main()
+    process_raw()
