@@ -136,7 +136,7 @@ class DocumentationMetricsCollect:
         except FileNotFoundError:
             LOG.error("Repository directory %r not found for repository %r when finding readme",
                       self.repo_dir, self.repo_name)
-            debug_tools.debug_raise()
+            debug_tools.debug_reraise()
 
         LOG.warning("Could not find README file for repository %r in %r", self.repo_name, self.repo_dir)
         return None
@@ -271,19 +271,19 @@ class DocumentationMetricsCollect:
 
             if not isinstance(documentation_percentage, float):
                 LOG.error("Invalid documentation percentage value: %s", documentation_percentage)
-                debug_tools.debug_raise()
+                debug_tools.debug_reraise()
 
             self.metrics["documentation_percentage"] = documentation_percentage / 100.0
 
         except FileNotFoundError:
             LOG.error("Pygount executable not found.")
-            debug_tools.debug_raise()
+            debug_tools.debug_reraise()
         except json.JSONDecodeError as exc:
             LOG.exception("Failed to parse pygount JSON for %s: %s", self.repo_name, exc)
-            debug_tools.debug_raise()
+            debug_tools.debug_reraise()
         except Exception as exc:
             LOG.exception("Pygount analysis failed for %s: %s", self.repo_name, exc)
-            debug_tools.debug_raise()
+            debug_tools.debug_reraise()
 
 
 def schedule_documentation_metrics(repo_urls: Iterable[str], output_csv: Path | None = None) -> None:
@@ -300,7 +300,7 @@ def schedule_documentation_metrics(repo_urls: Iterable[str], output_csv: Path | 
         except Exception as exc:
             LOG.exception("Failed to collect metrics for %s: %s", url, exc)
             _save_metrics(metrics_list, output_csv)
-            debug_tools.debug_raise()
+            debug_tools.debug_reraise()
 
     _save_metrics(metrics_list, output_csv)
 
