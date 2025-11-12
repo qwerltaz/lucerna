@@ -1,7 +1,9 @@
 """Logger configuration."""
 
+import inspect
 import logging
 import logging.config
+import os
 from typing import Optional
 
 import colorama
@@ -63,7 +65,7 @@ _logging_config = {
             "class": "logging.FileHandler",
             "level": "DEBUG",
             "formatter": "verbose",
-            "filename": ".log",
+            "filename": ".log",  # The default, overwritten by calling script's name.
             "mode": "a",
             "encoding": "utf-8",
         },
@@ -77,10 +79,16 @@ _logging_config = {
     "root": {"level": "DEBUG", "handlers": ["stdout", "file"]},
 }
 
-_log = logging.getLogger("local_logger")
-logging.config.dictConfig(_logging_config)
-
 
 def get() -> logging.Logger:
     """Get a configured logger instance."""
-    return _log
+    caller_frame = inspect.stack()[1]
+    caller_filename = os.path.basename(caller_frame.filename)
+    log_file_name = caller_filename.replace(".py", ".log")
+
+    _logging_config["handlers"]["file"]["filename"] = log_file_name
+    logging.config.dictConfig(_logging_config)
+    logger = logging.getLogger("local_logger")
+
+    logger.info("")
+    return logger
