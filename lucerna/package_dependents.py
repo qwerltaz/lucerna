@@ -19,6 +19,13 @@ class LibraryDependent(TypedDict):
     url: str
 
 
+class LibraryDependentsData(TypedDict):
+    """Data and dependents of a library."""
+
+    dependents_count: int
+    dependents: list[LibraryDependent]
+
+
 def _extract_owner_repo_from_url(github_url: str) -> str | None:
     """Return "owner/repo" from a GitHub repo URL, or None if invalid."""
     if not isinstance(github_url, str) or not github_url:
@@ -98,7 +105,6 @@ def get_library_dependents(github_url: str) -> list[LibraryDependent]:
             "Failed executing github-dependents-info for %s: %s", repo_slug, exc
         )
         raise
-        # TODO maybe save progress.
 
     if proc.returncode != 0:
         stderr = (proc.stderr or "").strip()
@@ -137,7 +143,7 @@ def main():
 
     libraries_dependents_count = load_security_libraries_df(file_path)
 
-    libraries_dependents: dict[str, list[LibraryDependent]] = {}
+    libraries_dependents: dict[str, LibraryDependentsData] = {}
 
     for _, row in libraries_dependents_count.iterrows():
         lib_name = row.get("name")
@@ -152,7 +158,11 @@ def main():
             lib_name = slug
 
         dependents = get_library_dependents(repo_url)
-        libraries_dependents[lib_name] = dependents
+        dependents_and_info = {
+            "dependents_count": len(dependents),
+            "dependents": dependents,
+        }
+        libraries_dependents[lib_name] = dependents_and_info
 
     output_path = (cvar.data_dir / "security_libraries_dependents").with_suffix(".json")
     try:
