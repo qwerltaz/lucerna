@@ -5,6 +5,8 @@ import subprocess
 from typing import TypedDict
 from urllib.parse import urlparse
 
+from tqdm import tqdm
+
 from process_security_libraries_dataset import load_security_libraries_df
 import cvar
 import logger
@@ -144,23 +146,29 @@ def main():
     output_path = (cvar.data_dir / "security_libraries_dependents").with_suffix(".json")
 
     libraries_dependents_count = load_security_libraries_df(file_path)
+    total_libraries_count = len(libraries_dependents_count)
 
     libraries_dependents: dict[str, LibraryDependentsData] = {}
+    if output_path.exists():
+        with open(output_path, "r", encoding="utf-8") as f:
+            last_snapshot = json.load(f)
+        if isinstance(last_snapshot, dict):
+            libraries_dependents = last_snapshot
+            LOG.info(
+                "Loaded %d libraries from existing output %s",
+                len(libraries_dependents),
+                output_path,
+            )
+        else:
+            LOG.info(
+                "Existing output %s did not contain a dict; starting fresh",
+                output_path,
+            )
 
-    for _, row in libraries_dependents_count.iterrows():
+    for _, row in tqdm(libraries_dependents_count.iterrows(), total=total_libraries_count):
         lib_name = row.get("name")
         repo_url = row.get("repo_url")
         estimated_dependents_count = row.get("directDependentCount", 0)
-
-        if estimated_dependents_count <= 0:
-            LOG.info("Skipping library with zero dependents: %s", lib_name)
-            continue
-
-        LOG.debug(
-            "Getting dependents for library %s with estimated dependents count: %s",
-            lib_name,
-            estimated_dependents_count,
-        )
 
         if not isinstance(repo_url, str) or not repo_url:
             LOG.info("Skipping library without repo_url: %s", lib_name)
@@ -169,6 +177,16 @@ def main():
         if not isinstance(lib_name, str) or not lib_name:
             slug = _extract_owner_repo_from_url(repo_url) or repo_url
             lib_name = slug
+
+        if lib_name in libraries_dependents:
+            LOG.info("Skipping already computed library: %s", lib_name)
+            continue
+
+        LOG.debug(
+            "Getting dependents for library %s with estimated dependents count: %s",
+            lib_name,
+            estimated_dependents_count,
+        )
 
         dependents = get_library_dependents(repo_url)
         dependents_and_info = {

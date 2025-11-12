@@ -13,5 +13,6 @@ dependencies = [
     "pygount>=3.1.0",
     "rich>=10.14,<14",
     "seaborn>=0.13.2",
+    "tqdm>=4.67.1",
     "typer[all]==0.9.4",
 ]
