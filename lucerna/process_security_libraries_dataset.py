@@ -186,6 +186,7 @@ def load_security_libraries_df(file_path: Path | str) -> pd.DataFrame:
     security_libraries: pd.DataFrame = pd.read_json(
         file_path, dtype={"upload_time": str, "metadata_version": str}
     )
+    security_libraries.sort_values(by=["directDependentCount"], inplace=True)
     return security_libraries
 
 
