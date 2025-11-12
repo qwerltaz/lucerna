@@ -179,7 +179,6 @@ def main():
             lib_name = slug
 
         if lib_name in libraries_dependents:
-            LOG.info("Skipping already computed library: %s", lib_name)
             continue
 
         LOG.debug(
