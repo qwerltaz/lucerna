@@ -138,7 +138,7 @@ def get_library_dependents(github_url: str) -> list[LibraryDependent]:
 
 def main():
     """Build mapping of security libraries to their list of dependents and save to json."""
-    file_name = "security_libraries_dependents_count_tiny"
+    file_name = "security_libraries_dependents_count"
     file_path = (cvar.data_dir / file_name).with_suffix(".json")
 
     libraries_dependents_count = load_security_libraries_df(file_path)
@@ -148,9 +148,20 @@ def main():
     for _, row in libraries_dependents_count.iterrows():
         lib_name = row.get("name")
         repo_url = row.get("repo_url")
+        estimated_dependents_count = row.get("directDependentCount", 0)
+
+        if estimated_dependents_count <= 0:
+            LOG.info("Skipping library with zero dependents: %s", lib_name)
+            continue
+
+        LOG.debug(
+            "Getting dependents for library %s with estimated dependents count: %s",
+            lib_name,
+            estimated_dependents_count,
+        )
 
         if not isinstance(repo_url, str) or not repo_url:
-            LOG.debug("Skipping library without repo_url: %s", lib_name)
+            LOG.info("Skipping library without repo_url: %s", lib_name)
             continue
 
         if not isinstance(lib_name, str) or not lib_name:
