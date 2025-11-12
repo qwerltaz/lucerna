@@ -64,7 +64,7 @@ _logging_config = {
             "level": "DEBUG",
             "formatter": "verbose",
             "filename": ".log",
-            "mode": "w",
+            "mode": "a",
             "encoding": "utf-8",
         },
     },
