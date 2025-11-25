@@ -795,19 +795,29 @@ def schedule_documentation_metrics(
 
 
 def _save_metrics(metrics_list: list[DocumentationMetrics], output_csv: Path | None):
-    df = pandas.DataFrame(metrics_list, columns=tuple(documentation_metrics_dictionary.keys()))
+    df = pandas.DataFrame(
+        metrics_list, columns=tuple(documentation_metrics_dictionary.keys())
+    )
     df.to_csv(output_csv, index=False)
     LOG.info("Saved documentation metrics. Wrote %d rows to %s", len(metrics_list), output_csv)
 
 
-def _example_usage():
+def example_usage():
+    """Run on a tiny example."""
     repo_list = [
         "https://github.com/Digital-Thought/dtPyAppFramework",
-        "https://github.com/qwerltaz/metric-dynamics",
         "https://github.com/qwerltaz/lucerna"
     ]
     schedule_documentation_metrics(repo_list)
 
+def main():
+    """Run on full target dataset."""
+    with open(cvar.resources_dir / "security_libraries_dependents_count.json", "r", encoding="utf-8") as f:
+        dependents_data = json.load(f)
+
+    repo_urls = [item["repo_url"] for item in dependents_data if item.get("repo_url")]
+    schedule_documentation_metrics(repo_urls)
+
 
 if __name__ == "__main__":
-    _example_usage()
+    main()
