@@ -780,8 +780,19 @@ def schedule_documentation_metrics(
     output_csv.parent.mkdir(parents=True, exist_ok=True)
 
     metrics_list: list[DocumentationMetrics] = []
+    existing_repo_names = set()
+
+    if output_csv.exists():
+        existing_df = pandas.read_csv(output_csv)
+        metrics_list = existing_df.to_dict("records")
+        existing_repo_names = {item["repo_name"] for item in metrics_list}
+
     for url in tqdm.tqdm(repo_urls):
         try:
+            repo_name = Path(str(url).rstrip("/")).stem
+            if repo_name in existing_repo_names:
+                continue
+
             collector = DocumentationMetricsCollect(url)
             repo_metrics = collector.collect_metrics()
             metrics_list.append(repo_metrics.copy())
@@ -812,7 +823,7 @@ def example_usage():
 
 def main():
     """Run on full target dataset."""
-    with open(cvar.resources_dir / "security_libraries_dependents_count.json", "r", encoding="utf-8") as f:
+    with open(cvar.data_dir / "security_libraries_dependents_count.json", "r", encoding="utf-8") as f:
         dependents_data = json.load(f)
 
     repo_urls = [item["repo_url"] for item in dependents_data if item.get("repo_url")]
@@ -820,4 +831,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    example_usage()
