@@ -83,8 +83,16 @@ class DocumentationMetricsCollect:
                 "Opened existing repository %r in %r", self.repo_name, self.repo_dir
             )
         else:
-            self.repo = git.Repo.clone_from(self.repo_url, self.repo_dir)
-            LOG.debug("Cloned repository %r into %r", self.repo_url, self.repo_dir)
+            try:
+                self.repo = git.Repo.clone_from(self.repo_url, self.repo_dir)
+                LOG.debug("Cloned repository %r into %r", self.repo_url, self.repo_dir)
+            except git.exc.GitCommandError:
+                LOG.error(
+                    "Failed to clone: repository not found: %r into %r",
+                    self.repo_url,
+                    self.repo_dir,
+                )
+                raise
 
         main_branch = self.main_branch
         self.repo.git.checkout(main_branch)
@@ -787,13 +795,17 @@ def schedule_documentation_metrics(
         metrics_list = existing_df.to_dict("records")
         existing_repo_names = {item["repo_name"] for item in metrics_list}
 
-    for url in tqdm.tqdm(repo_urls):
+    for url in tqdm.tqdm(repo_urls, total=len(repo_urls) - len(existing_repo_names)):
         try:
             repo_name = Path(str(url).rstrip("/")).stem
             if repo_name in existing_repo_names:
                 continue
 
-            collector = DocumentationMetricsCollect(url)
+            try:
+                collector = DocumentationMetricsCollect(url)
+            except git.exc.GitCommandError:
+                continue
+
             repo_metrics = collector.collect_metrics()
             metrics_list.append(repo_metrics.copy())
             _save_metrics(metrics_list, output_csv)
@@ -816,6 +828,7 @@ def _save_metrics(metrics_list: list[DocumentationMetrics], output_csv: Path | N
 def example_usage():
     """Run on a tiny example."""
     repo_list = [
+        "https://github.com/Cielquan/DoTH-DNS",
         "https://github.com/Digital-Thought/dtPyAppFramework",
         "https://github.com/qwerltaz/lucerna"
     ]
@@ -831,4 +844,4 @@ def main():
 
 
 if __name__ == "__main__":
-    example_usage()
+    main()
