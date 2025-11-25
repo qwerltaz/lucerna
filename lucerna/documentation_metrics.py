@@ -20,6 +20,7 @@ import tqdm
 import ast_node_checks
 import cvar
 import debug_tools
+import exceptions
 import logger
 
 LOG = logger.get()
@@ -93,6 +94,17 @@ class DocumentationMetricsCollect:
                     self.repo_dir,
                 )
                 raise
+
+        python_files = list(self.repo_dir.rglob("*.py"))
+        if not python_files:
+            LOG.info(
+                "No Python files found in repository %r at %r, skipping",
+                self.repo_name,
+                self.repo_dir,
+            )
+            raise exceptions.NoPythonFilesInRepository(
+                f"No Python files found in repository {self.repo_name}"
+            )
 
         main_branch = self.main_branch
         self.repo.git.checkout(main_branch)
@@ -803,7 +815,7 @@ def schedule_documentation_metrics(
 
             try:
                 collector = DocumentationMetricsCollect(url)
-            except git.exc.GitCommandError:
+            except git.exc.GitCommandError, exceptions.NoPythonFilesInRepository:
                 continue
 
             repo_metrics = collector.collect_metrics()
