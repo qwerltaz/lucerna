@@ -1,0 +1,2 @@
+bblfsh==4.2.0
+protobuf<3.21.0
