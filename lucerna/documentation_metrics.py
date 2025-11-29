@@ -315,9 +315,9 @@ class DocumentationMetricsCollect:
         try:
             results = cov.get_coverage()
             self.metrics["docstring_coverage"] = results.perc_covered / 100.0
-        except SyntaxError:
+        except SyntaxError, UnicodeDecodeError:
             LOG.warning(
-                "Failed docstring coverage due to source syntax error during docstring coverage analysis for %s",
+                "Failed docstring coverage due to source error during docstring coverage analysis for %s",
                 self.repo_name)
             self.metrics["docstring_coverage"] = 0
 
