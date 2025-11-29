@@ -26,7 +26,7 @@ import logger
 LOG = logger.get()
 
 with open(
-    cvar.resources_dir / "wiki_file_text_extensions.json", "r", encoding="utf-8"
+        cvar.resources_dir / "wiki_file_text_extensions.json", "r", encoding="utf-8"
 ) as f:
     WIKI_FILE_TEXT_EXTENSIONS = set(json.load(f))
 
@@ -73,7 +73,7 @@ class DocumentationMetricsCollect:
         self.repo_name = Path(self.repo_url.rstrip("/")).stem
 
         self.repo_dir = (
-            cvar.data_dir / "repos" / "documentation_metrics" / self.repo_name
+                cvar.data_dir / "repos" / "documentation_metrics" / self.repo_name
         )
         self.repo_dir.parent.mkdir(parents=True, exist_ok=True)
 
@@ -88,7 +88,7 @@ class DocumentationMetricsCollect:
                 self.repo = git.Repo.clone_from(self.repo_url, self.repo_dir)
                 LOG.debug("Cloned repository %r into %r", self.repo_url, self.repo_dir)
             except git.exc.GitCommandError:
-                LOG.error(
+                LOG.info(
                     "Failed to clone: repository not found: %r into %r",
                     self.repo_url,
                     self.repo_dir,
@@ -116,7 +116,7 @@ class DocumentationMetricsCollect:
         self.metrics["repo_name"] = self.repo_name
 
         with open(
-            cvar.resources_dir / "readme_section_names.json", "r", encoding="utf-8"
+                cvar.resources_dir / "readme_section_names.json", "r", encoding="utf-8"
         ) as f:
             self.readme_section_names = json.load(f)
 
@@ -256,7 +256,7 @@ class DocumentationMetricsCollect:
                     file_path = Path(root) / file_name
                     try:
                         with open(
-                            file_path, "r", encoding="utf-8", errors="ignore"
+                                file_path, "r", encoding="utf-8", errors="ignore"
                         ) as f:
                             total_characters += len(f.read())
                     except Exception as exc:
@@ -312,8 +312,14 @@ class DocumentationMetricsCollect:
     def get_docstring_coverage(self) -> None:
         """Calculate fraction of functions/methods with docstrings."""
         cov = coverage.InterrogateCoverage(paths=[str(self.repo_dir)])
-        results = cov.get_coverage()
-        self.metrics["docstring_coverage"] = results.perc_covered / 100.0
+        try:
+            results = cov.get_coverage()
+            self.metrics["docstring_coverage"] = results.perc_covered / 100.0
+        except SyntaxError:
+            LOG.warning(
+                "Failed docstring coverage due to source syntax error during docstring coverage analysis for %s",
+                self.repo_name)
+            self.metrics["docstring_coverage"] = 0
 
     def get_documentation_percentage(self) -> None:
         """Compute fraction of documentation lines across all Python files in our repo."""
@@ -385,7 +391,7 @@ class DocumentationMetricsCollect:
                 )
                 return candidate_path
 
-        LOG.warning(
+        LOG.info(
             "Could not find documentation directory for repository %r", self.repo_name
         )
         return None
@@ -402,9 +408,9 @@ class DocumentationMetricsCollect:
 
         for py_file in python_files:
             if (
-                ".venv" in py_file.parts
-                or "venv" in py_file.parts
-                or "__pycache__" in py_file.parts
+                    ".venv" in py_file.parts
+                    or "venv" in py_file.parts
+                    or "__pycache__" in py_file.parts
             ):
                 continue
 
@@ -432,8 +438,8 @@ class DocumentationMetricsCollect:
                         if node.name.startswith("_"):
                             continue
                         if not any(
-                            isinstance(parent, ast.ClassDef)
-                            for parent in ast.walk(tree)
+                                isinstance(parent, ast.ClassDef)
+                                for parent in ast.walk(tree)
                         ):
                             public_items.add(node.name)
 
@@ -461,10 +467,10 @@ class DocumentationMetricsCollect:
 
         for py_file in python_files:
             if (
-                ".venv" in py_file.parts
-                or "venv" in py_file.parts
-                or "__pycache__" in py_file.parts
-                or py_file.parts[-1].startswith("test")
+                    ".venv" in py_file.parts
+                    or "venv" in py_file.parts
+                    or "__pycache__" in py_file.parts
+                    or py_file.parts[-1].startswith("test")
             ):
                 continue
 
@@ -487,9 +493,9 @@ class DocumentationMetricsCollect:
 
                         for item in node.body:
                             if (
-                                not isinstance(item, ast.FunctionDef)
-                                or item.name.startswith("_")
-                                or ast_node_checks.is_method_property(item)
+                                    not isinstance(item, ast.FunctionDef)
+                                    or item.name.startswith("_")
+                                    or ast_node_checks.is_method_property(item)
                             ):
                                 continue
 
@@ -539,7 +545,7 @@ class DocumentationMetricsCollect:
         if self.readme_path:
             try:
                 with open(
-                    self.readme_path, "r", encoding="utf-8", errors="ignore"
+                        self.readme_path, "r", encoding="utf-8", errors="ignore"
                 ) as f:
                     all_text.append(f.read())
             except Exception as exc:
@@ -571,7 +577,7 @@ class DocumentationMetricsCollect:
                         file_path = Path(root) / file_name
                         try:
                             with open(
-                                file_path, "r", encoding="utf-8", errors="ignore"
+                                    file_path, "r", encoding="utf-8", errors="ignore"
                             ) as f:
                                 all_text.append(f.read())
                         except Exception as exc:
@@ -634,7 +640,7 @@ class DocumentationMetricsCollect:
                             depth -= 1
                         i += 1
 
-                    args_section = doc_text[start_pos : i - 1].strip()
+                    args_section = doc_text[start_pos: i - 1].strip()
 
                     if not args_section:
                         if source_arg_count == 0:
@@ -793,7 +799,7 @@ class DocumentationMetricsCollect:
 
 
 def schedule_documentation_metrics(
-    repo_urls: Iterable[str], output_csv: Path | None = None
+        repo_urls: Iterable[str], output_csv: Path | None = None
 ) -> None:
     """Schedule documentation metrics collection for a set of repositories and write to CSV."""
     output_csv = output_csv or (cvar.data_dir / "documentation_metrics.csv")
@@ -845,6 +851,7 @@ def example_usage():
         "https://github.com/qwerltaz/lucerna"
     ]
     schedule_documentation_metrics(repo_list)
+
 
 def main():
     """Run on full target dataset."""
