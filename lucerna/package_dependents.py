@@ -140,7 +140,7 @@ def get_library_dependents(github_url: str) -> list[LibraryDependent]:
 
 def main():
     """Build mapping of security libraries to their list of dependents and save to json."""
-    file_name = "security_libraries_dependents_count"
+    file_name = "licma_security_libraries"
 
     file_path = (cvar.data_dir / file_name).with_suffix(".json")
     output_path = (cvar.data_dir / "security_libraries_dependents").with_suffix(".json")
@@ -198,7 +198,6 @@ def main():
             json.dump(libraries_dependents, f, indent=4, ensure_ascii=False)
 
     LOG.info("Saved libraries dependents to %s", output_path)
-
 
 
 if __name__ == "__main__":
