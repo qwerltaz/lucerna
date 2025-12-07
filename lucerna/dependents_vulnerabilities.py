@@ -1,17 +1,24 @@
 """Compute a dataset of vulnerabilities of dependents of the security libraries."""
+
 import json
 import os
 import re
+import shutil
+import subprocess
 from pathlib import Path
+from typing import Literal
 
 import git
 from tqdm import tqdm
+import pandas as pd
 
 import cvar
 import exceptions
 import logger
 
 LOG = logger.get()
+
+DATA_DIR_ABSOLUTE = cvar.data_dir.resolve()
 
 
 class VulnerabilitiesCollect:
@@ -94,47 +101,141 @@ class VulnerabilitiesCollect:
         )
         raise ValueError(error_message)
 
-    def get_vulnerabilities(self) -> list:
+    def get_vulnerabilities(self,
+                            security_library: Literal["PyCrypto", "PyNaCl", "M2Crypto", "cryptography"]
+                            ) -> pd.DataFrame | None:
         """
-        Get the vulnerabilities of the dependents of the repository.
-        Return a dictionary of form dependent: vulnerability list.
+        Get the vulnerabilities of the repository related to given security library.
+        Run licma in a Docker container, retrieve and parse the output, and remove the output file in the container.
+
+        :param security_library: Target security library supported by licma.
         """
-        raise NotImplementedError()
+        subprocess.run(["docker", "compose", "exec", "licma", "python3", "run_licma.py",
+                        "--lc",  # Log to console.
+                        "--la=py",  # Language.
+                        "--ll=20",  # Debug level.
+                        "-i", f"/usr/data/dependents/{self.repo_name}",
+                        "--lib", security_library],
+                       cwd=cvar.licma_dir,
+                       check=True)
+
+        licma_ls_output = subprocess.run(
+            ["docker", "compose", "exec", "licma", "ls", "/usr/licma/output"],
+            cwd=cvar.licma_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8"
+        )
+        if licma_ls_output.returncode != 0:
+            LOG.error(
+                "Failed to list output files in licma container: %s",
+                licma_ls_output.stderr
+            )
+            return None
+
+        licma_output_file_name = licma_ls_output.stdout.strip()
+
+        try:
+            subprocess.run(
+                ["docker", "cp", "licma:/usr/licma/output", str(DATA_DIR_ABSOLUTE / "licma")],
+                check=True
+            )
+        except subprocess.CalledProcessError as exc:
+            LOG.error(
+                "Failed to copy output files from licma container: %s",
+                exc
+            )
+            return None
+
+        licma_output_path = cvar.data_dir / "licma" / "output" / licma_output_file_name
+        if not licma_output_path.is_file():
+            LOG.error(
+                "Expected output file not found: %r",
+                licma_output_path
+            )
+            return None
+
+        output_file_path_repo = Path(str(licma_output_path.with_suffix('')) + "_" + self.repo_name).with_suffix(".csv")
+        shutil.move(licma_output_path, output_file_path_repo)
+
+        vulnerabilities = pd.read_csv(output_file_path_repo, encoding="utf-8", sep=";")
+
+        subprocess.run(
+            ["docker", "compose", "exec", "licma", "rm", "-rf", "/usr/licma/output"],
+            cwd=cvar.licma_dir,
+            check=False
+        )
+
+        return vulnerabilities if not vulnerabilities.empty else None
 
 
 def collect_vulnerabilities() -> None:
     """Collect vulnerabilities for dependents of security libraries."""
-    security_libraries_path = cvar.data_dir / "security_libraries_dependents_count.json"
+    security_libraries_path = cvar.data_dir / "licma_security_libraries.json"
     dependents_path = cvar.data_dir / "security_libraries_dependents.json"
+
+    target_security_libraries_names = {"cryptography", "M2Crypto", "PyCrypto", "PyNaCl"}
 
     with open(security_libraries_path, "r", encoding="utf-8") as f:
         security_libraries: list[dict] = json.load(f)
 
     with open(dependents_path, "r", encoding="utf-8") as f:
-        dependents_raw: dict[str, dict] = json.load(f)
+        dependents: dict[str, dict] = json.load(f)
 
-    dependents = dict(sorted(dependents_raw.items(), key=lambda x: x[1]["dependents_count"]))
-    security_libraries = sorted(security_libraries, key=lambda x: dependents[x["name"]]["dependents_count"])
+    security_libraries = [
+        lib for lib in security_libraries if lib["name"] in target_security_libraries_names
+    ]
+    dependents = {
+        lib_name: data
+        for lib_name, data in dependents.items()
+        if lib_name in target_security_libraries_names
+    }
 
     vulnerabilities_out_path = cvar.data_dir / "vulnerabilities.csv"
 
+    subprocess.run(
+        ["docker", "compose", "up", "-d"],
+        cwd=cvar.licma_dir,
+        check=True)
+
+    all_vulnerabilities = get_all_vulnerabilities(dependents, security_libraries)
+
+
+def get_all_vulnerabilities(dependents: dict[str, dict],
+                            security_libraries: list[dict]):
     # Vulnerabilities, with keys as security library, and values as
     # dictionaries of form dependent: list of vulnerabilities.
     all_vulnerabilities: dict[str, dict[str, list]] = {}
 
-    for lib in tqdm(security_libraries):
+    total_dependents_count = sum(lib_data["dependents_count"] for lib, lib_data in dependents.items())
+    for lib in tqdm(security_libraries, total=total_dependents_count):  # TODO make it oscillate between libs.
         lib_name = lib["name"]
         if lib_name not in dependents:
-            continue
+            raise ValueError(
+                f"Dependents data not found for security library: {lib_name}"
+            )
 
         for dependent in dependents[lib_name]["dependents"]:
             dependent_repo_url = dependent["url"]
 
+            # TODO remove this testing when finished.
+            dependent_repo_url = "https://github.com/stg-tud/licma" # contains vulnerabilities.
+            # dependent_repo_url = "https://github.com/qwerltaz/metric-dynamics" # no vulnerabilities.
+
             collector = VulnerabilitiesCollect(dependent_repo_url)
-            dependent_vulnerabilities = collector.get_vulnerabilities()
-            if dependent_vulnerabilities:
-                dependent_name = dependent["name"].split("/")[-1]
-                all_vulnerabilities[lib_name][dependent[dependent_name]] = dependent_vulnerabilities
+
+            # TODO we return pd dataframe. keep like that? or convert to list/dict? if dataframe, need to tweak here.
+            dependent_vulnerabilities = collector.get_vulnerabilities(
+                lib_name)  # TODO actually input correct lib.
+
+            if dependent_vulnerabilities is None:
+                continue
+
+            dependent_name = dependent["name"].split("/")[-1]
+            all_vulnerabilities[lib_name][dependent[dependent_name]] = dependent_vulnerabilities
+
+    return all_vulnerabilities
 
 
 def main():
