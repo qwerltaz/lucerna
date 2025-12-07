@@ -98,7 +98,7 @@ class Licma:
             logger.error("No valid output directory")
             return
 
-        output_file = os.path.join(output, "licma-result-" + str(datetime.datetime.now()) + ".csv")
+        output_file = os.path.join(output, "licma-result") + ".csv"
         self.create_result_file(output_file)
         self.apply_rules(files, output_file, language, number, lib)
 
