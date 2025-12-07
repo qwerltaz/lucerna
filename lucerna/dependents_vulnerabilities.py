@@ -227,7 +227,7 @@ def get_all_vulnerabilities(dependents: dict[str, dict],
 
             # TODO we return pd dataframe. keep like that? or convert to list/dict? if dataframe, need to tweak here.
             dependent_vulnerabilities = collector.get_vulnerabilities(
-                lib_name)  # TODO actually input correct lib.
+                lib_name)
 
             if dependent_vulnerabilities is None:
                 continue
