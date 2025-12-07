@@ -8,7 +8,7 @@
 # Installation
 
 1. Clone this repository.
-2. Start LICMA, located in `./licma`.
+2. Set up LICMA, located in `./licma`.
    See https://github.com/stg-tud/licma/blob/b899e6e682f7716d19e79d6ce7b73c28c6efd4cf/README.md.
 
 # Usage
