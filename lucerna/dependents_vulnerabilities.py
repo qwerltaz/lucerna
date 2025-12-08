@@ -8,6 +8,7 @@ import subprocess
 from collections import deque
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 import git
 from tqdm import tqdm
@@ -32,7 +33,11 @@ class VulnerabilitiesCollect:
             )
 
         self.repo_url = repo_url
-        self.repo_name = Path(self.repo_url.rstrip("/")).stem
+        # Name of form "owner--repo".
+        path_parts = urlsplit(self.repo_url).path.strip("/").split("/")
+        if len(path_parts) < 2:
+            raise ValueError(f"Invalid repository URL, expected owner and name: {self.repo_url!r}")
+        self.repo_name = "--".join(path_parts[-2:])
 
         self.repo_dir = (
                 cvar.data_dir / "repos" / "dependents" / self.repo_name
@@ -67,12 +72,6 @@ class VulnerabilitiesCollect:
             raise exceptions.NoPythonFilesInRepository(
                 f"No Python files found in repository {self.repo_name}"
             )
-
-        main_branch = self.main_branch
-        self.repo.git.checkout(main_branch)
-        LOG.debug(
-            "Checked out main branch %r for repository %r", main_branch, self.repo_name
-        )
 
     @property
     def main_branch(self) -> str:
@@ -117,6 +116,16 @@ class VulnerabilitiesCollect:
 
         security_library = security_library.lower()
 
+        licma_output_file_name = Path("licma-result.csv")
+        licma_output_path = cvar.data_dir / "licma" / "output" / licma_output_file_name
+        output_file_path_repo = Path(str(licma_output_path.with_suffix('')) + "_" + self.repo_name).with_suffix(".csv")
+
+        # If already computed but `all_vulnerabilities` entry missing
+        # or was added but later the entry or entire dictionary wiped.
+        if output_file_path_repo.is_file():
+            vulnerabilities = pd.read_csv(output_file_path_repo, encoding="utf-8", sep=";")
+            return len(vulnerabilities)
+
         subprocess.run(["docker", "compose", "exec", "licma", "python3", "run_licma.py",
                         "--lc",  # Log to console.
                         "--la=py",  # Language.
@@ -141,8 +150,6 @@ class VulnerabilitiesCollect:
             )
             return None
 
-        licma_output_file_name = licma_ls_output.stdout.strip()
-
         try:
             subprocess.run(
                 ["docker", "cp", "licma:/usr/licma/output", str(DATA_DIR_ABSOLUTE / "licma")],
@@ -155,7 +162,6 @@ class VulnerabilitiesCollect:
             )
             return None
 
-        licma_output_path = cvar.data_dir / "licma" / "output" / licma_output_file_name
         if not licma_output_path.is_file():
             LOG.error(
                 "Expected output file not found: %r",
@@ -163,7 +169,6 @@ class VulnerabilitiesCollect:
             )
             return None
 
-        output_file_path_repo = Path(str(licma_output_path.with_suffix('')) + "_" + self.repo_name).with_suffix(".csv")
         shutil.move(licma_output_path, output_file_path_repo)
 
         vulnerabilities = pd.read_csv(output_file_path_repo, encoding="utf-8", sep=";")
