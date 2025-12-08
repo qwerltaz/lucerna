@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import subprocess
+from collections import deque
 from pathlib import Path
 from typing import Literal
 
@@ -109,9 +110,12 @@ class VulnerabilitiesCollect:
         Run licma in a Docker container, retrieve and parse the output, and remove the output file in the container.
 
         :param security_library: Target security library supported by licma.
+        :return: Number of vulnerabilities found, or -1 on error.
         """
         LOG.debug("Running licma for repository %r and security library %r",
                   self.repo_name, security_library)
+
+        security_library = security_library.lower()
 
         subprocess.run(["docker", "compose", "exec", "licma", "python3", "run_licma.py",
                         "--lc",  # Log to console.
@@ -167,7 +171,7 @@ class VulnerabilitiesCollect:
         subprocess.run(
             ["docker", "compose", "exec", "licma", "rm", "-rf", "/usr/licma/output"],
             cwd=cvar.licma_dir,
-            check=False
+            check=True
         )
 
         return len(vulnerabilities)
@@ -215,37 +219,71 @@ def collect_all_vulnerabilities(dependents: dict[str, dict],
     """
     # Vulnerabilities, with keys as security library, and values as
     # dictionaries of form dependent: vulnerability count.
-    all_vulnerabilities: dict[str, dict[str, int]] = {}
-
-    total_dependents_count = sum(lib_data["dependents_count"] for lib, lib_data in dependents.items())
+    all_vulnerabilities: dict[str, dict[str, int | None]] = {}
 
     if os.path.exists(save_path):
         with open(save_path, "r", encoding="utf-8") as f:
             all_vulnerabilities = json.load(f)
 
-    for lib in tqdm(security_libraries, total=total_dependents_count):  # TODO make it oscillate between libs so that each lib gets the same amount of data.
+    for lib_name in dependents:
+        all_vulnerabilities.setdefault(lib_name, {})
+
+    pending_dependents: dict[str, deque[dict]] = {}
+    for lib in security_libraries:
         lib_name = lib["name"]
         if lib_name not in dependents:
             raise ValueError(
                 f"Dependents data not found for security library: {lib_name}"
             )
-
+        processed_dependents = set(all_vulnerabilities.get(lib_name, {}))
+        lib_queue: deque[dict] = deque()
         for dependent in dependents[lib_name]["dependents"]:
-            dependent_repo_url = dependent["url"]
+            dependent_name = dependent["name"].split("/")[-1]
+            if dependent_name in processed_dependents:
+                continue
+            lib_queue.append(dependent)
+        pending_dependents[lib_name] = lib_queue
 
-            collector = VulnerabilitiesCollect(dependent_repo_url)
+    total_pending = sum(len(queue) for queue in pending_dependents.values())
+    if total_pending == 0:
+        LOG.info("All dependents already processed; nothing to do.")
+        return
 
-            dependent_vulnerabilities = collector.get_vulnerabilities(
-                lib_name)
+    progress = tqdm(total=total_pending, desc="Collecting vulnerabilities")
 
-            if dependent_vulnerabilities is None:
+    while total_pending > 0:
+        processed_in_cycle = False
+        for lib in security_libraries:
+            lib_name = lib["name"]
+            queue = pending_dependents[lib_name]
+            if not queue:
                 continue
 
+            dependent = queue.popleft()
+            processed_in_cycle = True
+
+            collector = VulnerabilitiesCollect(dependent["url"])
+            dependent_vulnerabilities_count: int | None = collector.get_vulnerabilities(lib_name)
             dependent_name = dependent["name"].split("/")[-1]
-            all_vulnerabilities[lib_name][dependent_name] = dependent_vulnerabilities
+
+            total_pending -= 1
+            progress.update(1)
+
+            all_vulnerabilities[lib_name][dependent_name] = dependent_vulnerabilities_count
+
+            with open(save_path, "w", encoding="utf-8") as f:
+                json.dump(all_vulnerabilities, f, indent=4)
+
+            LOG.info("Collected vulnerabilities for dependent %r of library %r: counted %r",
+                     dependent_name, lib_name, dependent_vulnerabilities_count)
+
+        if not processed_in_cycle:
+            break
+
+    progress.close()
 
     with open(save_path, "w", encoding="utf-8") as f:
-        json.dump(all_vulnerabilities, f, indent=2)
+        json.dump(all_vulnerabilities, f, indent=4)
 
 
 def main():
