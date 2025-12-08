@@ -195,25 +195,35 @@ def collect_vulnerabilities() -> None:
         if lib_name in target_security_libraries_names
     }
 
-    vulnerabilities_out_path = cvar.data_dir / "vulnerabilities.csv"
+    vulnerabilities_out_path = cvar.data_dir / "vulnerabilities.json"
 
     subprocess.run(
         ["docker", "compose", "up", "-d"],
         cwd=cvar.licma_dir,
         check=True)
 
-    all_vulnerabilities = get_all_vulnerabilities(dependents, security_libraries)
+    collect_all_vulnerabilities(dependents, security_libraries, vulnerabilities_out_path)
 
 
-def get_all_vulnerabilities(dependents: dict[str, dict],
-                            security_libraries: list[dict]):
+def collect_all_vulnerabilities(dependents: dict[str, dict],
+                                security_libraries: list[dict],
+                                save_path: Path) -> None:
+    """
+    Collect vulnerabilities for all dependents of the target security libraries, and save.
+
+    If save path exists, load existing progress and continue.
+    """
     # Vulnerabilities, with keys as security library, and values as
-    # dictionaries of form dependent: list of vulnerabilities.
+    # dictionaries of form dependent: vulnerability count.
     all_vulnerabilities: dict[str, dict[str, int]] = {}
 
     total_dependents_count = sum(lib_data["dependents_count"] for lib, lib_data in dependents.items())
 
-    for lib in tqdm(security_libraries, total=total_dependents_count):  # TODO make it oscillate between libs.
+    if os.path.exists(save_path):
+        with open(save_path, "r", encoding="utf-8") as f:
+            all_vulnerabilities = json.load(f)
+
+    for lib in tqdm(security_libraries, total=total_dependents_count):  # TODO make it oscillate between libs so that each lib gets the same amount of data.
         lib_name = lib["name"]
         if lib_name not in dependents:
             raise ValueError(
@@ -222,10 +232,6 @@ def get_all_vulnerabilities(dependents: dict[str, dict],
 
         for dependent in dependents[lib_name]["dependents"]:
             dependent_repo_url = dependent["url"]
-
-            # TODO testing, remove when finished.
-            dependent_repo_url = "https://github.com/stg-tud/licma-test-tiny"  # contains vulnerabilities.
-            # dependent_repo_url = "https://github.com/qwerltaz/metric-dynamics" # no vulnerabilities.
 
             collector = VulnerabilitiesCollect(dependent_repo_url)
 
@@ -238,7 +244,8 @@ def get_all_vulnerabilities(dependents: dict[str, dict],
             dependent_name = dependent["name"].split("/")[-1]
             all_vulnerabilities[lib_name][dependent_name] = dependent_vulnerabilities
 
-    return all_vulnerabilities
+    with open(save_path, "w", encoding="utf-8") as f:
+        json.dump(all_vulnerabilities, f, indent=2)
 
 
 def main():
