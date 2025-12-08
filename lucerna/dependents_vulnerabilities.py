@@ -49,9 +49,9 @@ class VulnerabilitiesCollect:
             try:
                 self.repo = git.Repo.clone_from(self.repo_url, self.repo_dir)
                 LOG.debug("Cloned repository %r into %r", self.repo_url, self.repo_dir)
-            except git.exc.GitCommandError:
+            except git.exc.GitCommandError:  # Raised e.g., if on Windows and repository contains colon in one of the file names (illegal).
                 LOG.error(
-                    "Failed to clone: repository not found: %r into %r",
+                    "Failed to clone: %r into %r",
                     self.repo_url,
                     self.repo_dir,
                 )
@@ -218,7 +218,7 @@ def collect_all_vulnerabilities(dependents: dict[str, dict],
     If save path exists, load existing progress and continue.
     """
     # Vulnerabilities, with keys as security library, and values as
-    # dictionaries of form dependent: vulnerability count.
+    # dictionaries of form dependent: vulnerability count or None if failed to collect.
     all_vulnerabilities: dict[str, dict[str, int | None]] = {}
 
     if os.path.exists(save_path):
@@ -238,7 +238,7 @@ def collect_all_vulnerabilities(dependents: dict[str, dict],
         processed_dependents = set(all_vulnerabilities.get(lib_name, {}))
         lib_queue: deque[dict] = deque()
         for dependent in dependents[lib_name]["dependents"]:
-            dependent_name = dependent["name"].split("/")[-1]
+            dependent_name = dependent["name"]
             if dependent_name in processed_dependents:
                 continue
             lib_queue.append(dependent)
@@ -262,9 +262,13 @@ def collect_all_vulnerabilities(dependents: dict[str, dict],
             dependent = queue.popleft()
             processed_in_cycle = True
 
-            collector = VulnerabilitiesCollect(dependent["url"])
-            dependent_vulnerabilities_count: int | None = collector.get_vulnerabilities(lib_name)
-            dependent_name = dependent["name"].split("/")[-1]
+            try:
+                collector = VulnerabilitiesCollect(dependent["url"])
+                dependent_vulnerabilities_count: int | None = collector.get_vulnerabilities(lib_name)
+            except git.exc.GitCommandError:
+                dependent_vulnerabilities_count = None
+
+            dependent_name = dependent["name"]
 
             total_pending -= 1
             progress.update(1)
