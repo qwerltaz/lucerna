@@ -103,13 +103,16 @@ class VulnerabilitiesCollect:
 
     def get_vulnerabilities(self,
                             security_library: Literal["PyCrypto", "PyNaCl", "M2Crypto", "cryptography"]
-                            ) -> pd.DataFrame | None:
+                            ) -> int | None:
         """
         Get the vulnerabilities of the repository related to given security library.
         Run licma in a Docker container, retrieve and parse the output, and remove the output file in the container.
 
         :param security_library: Target security library supported by licma.
         """
+        LOG.debug("Running licma for repository %r and security library %r",
+                  self.repo_name, security_library)
+
         subprocess.run(["docker", "compose", "exec", "licma", "python3", "run_licma.py",
                         "--lc",  # Log to console.
                         "--la=py",  # Language.
@@ -167,7 +170,7 @@ class VulnerabilitiesCollect:
             check=False
         )
 
-        return vulnerabilities if not vulnerabilities.empty else None
+        return len(vulnerabilities)
 
 
 def collect_vulnerabilities() -> None:
@@ -206,9 +209,10 @@ def get_all_vulnerabilities(dependents: dict[str, dict],
                             security_libraries: list[dict]):
     # Vulnerabilities, with keys as security library, and values as
     # dictionaries of form dependent: list of vulnerabilities.
-    all_vulnerabilities: dict[str, dict[str, list]] = {}
+    all_vulnerabilities: dict[str, dict[str, int]] = {}
 
     total_dependents_count = sum(lib_data["dependents_count"] for lib, lib_data in dependents.items())
+
     for lib in tqdm(security_libraries, total=total_dependents_count):  # TODO make it oscillate between libs.
         lib_name = lib["name"]
         if lib_name not in dependents:
@@ -219,13 +223,12 @@ def get_all_vulnerabilities(dependents: dict[str, dict],
         for dependent in dependents[lib_name]["dependents"]:
             dependent_repo_url = dependent["url"]
 
-            # TODO remove this testing when finished.
-            dependent_repo_url = "https://github.com/stg-tud/licma" # contains vulnerabilities.
+            # TODO testing, remove when finished.
+            dependent_repo_url = "https://github.com/stg-tud/licma-test-tiny"  # contains vulnerabilities.
             # dependent_repo_url = "https://github.com/qwerltaz/metric-dynamics" # no vulnerabilities.
 
             collector = VulnerabilitiesCollect(dependent_repo_url)
 
-            # TODO we return pd dataframe. keep like that? or convert to list/dict? if dataframe, need to tweak here.
             dependent_vulnerabilities = collector.get_vulnerabilities(
                 lib_name)
 
@@ -233,7 +236,7 @@ def get_all_vulnerabilities(dependents: dict[str, dict],
                 continue
 
             dependent_name = dependent["name"].split("/")[-1]
-            all_vulnerabilities[lib_name][dependent[dependent_name]] = dependent_vulnerabilities
+            all_vulnerabilities[lib_name][dependent_name] = dependent_vulnerabilities
 
     return all_vulnerabilities
 
