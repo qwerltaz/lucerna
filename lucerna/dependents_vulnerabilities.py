@@ -265,7 +265,9 @@ def collect_all_vulnerabilities(dependents: dict[str, dict],
             try:
                 collector = VulnerabilitiesCollect(dependent["url"])
                 dependent_vulnerabilities_count: int | None = collector.get_vulnerabilities(lib_name)
-            except git.exc.GitCommandError:
+            except (git.exc.GitCommandError, exceptions.NoPythonFilesInRepository) as exc:
+                LOG.info("Skipping dependent %r of library %r due to repository issue: %s",
+                         dependent["name"], lib_name, exc)
                 dependent_vulnerabilities_count = None
 
             dependent_name = dependent["name"]
