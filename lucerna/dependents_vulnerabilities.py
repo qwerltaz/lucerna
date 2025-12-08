@@ -28,7 +28,7 @@ class VulnerabilitiesCollect:
 
     def __init__(self, repo_url: str):
         if not isinstance(repo_url, str) or not repo_url:
-            raise ValueError(
+            raise exceptions.InvalidRepositoryURL(
                 f"Received repository URL was empty or invalid: {repo_url!r}"
             )
 
@@ -36,7 +36,7 @@ class VulnerabilitiesCollect:
         # Name of form "owner--repo".
         path_parts = urlsplit(self.repo_url).path.strip("/").split("/")
         if len(path_parts) < 2:
-            raise ValueError(f"Invalid repository URL, expected owner and name: {self.repo_url!r}")
+            raise exceptions.InvalidRepositoryURL(f"Invalid repository URL, expected owner and name: {self.repo_url!r}")
         self.repo_name = "--".join(path_parts[-2:])
 
         self.repo_dir = (
@@ -270,7 +270,10 @@ def collect_all_vulnerabilities(dependents: dict[str, dict],
             try:
                 collector = VulnerabilitiesCollect(dependent["url"])
                 dependent_vulnerabilities_count: int | None = collector.get_vulnerabilities(lib_name)
-            except (git.exc.GitCommandError, exceptions.NoPythonFilesInRepository) as exc:
+            except (git.exc.GitCommandError,
+                    exceptions.NoPythonFilesInRepository,
+                    exceptions.InvalidRepositoryURL
+                    ) as exc:
                 LOG.info("Skipping dependent %r of library %r due to repository issue: %s",
                          dependent["name"], lib_name, exc)
                 dependent_vulnerabilities_count = None
