@@ -315,7 +315,7 @@ class DocumentationMetricsCollect:
         try:
             results = cov.get_coverage()
             self.metrics["docstring_coverage"] = results.perc_covered / 100.0
-        except SyntaxError, UnicodeDecodeError:
+        except (SyntaxError, UnicodeDecodeError) as exc:
             LOG.warning(
                 "Failed docstring coverage due to source error during docstring coverage analysis for %s",
                 self.repo_name)
@@ -452,7 +452,7 @@ class DocumentationMetricsCollect:
 
     def _extract_public_items_with_metadata(self) -> dict[str, dict]:
         """
-        Extract public classes and methods with metadata (arg counts, etc).
+        Extract public classes and methods with metadata (arg counts, etc.).
 
         Returns dict mapping names to metadata:
         {
@@ -799,10 +799,9 @@ class DocumentationMetricsCollect:
 
 
 def schedule_documentation_metrics(
-        repo_urls: Iterable[str], output_csv: Path | None = None
+        repo_urls: Iterable[str], output_csv: Path,
 ) -> None:
     """Schedule documentation metrics collection for a set of repositories and write to CSV."""
-    output_csv = output_csv or (cvar.data_dir / "documentation_metrics.csv")
     output_csv.parent.mkdir(parents=True, exist_ok=True)
 
     metrics_list: list[DocumentationMetrics] = []
@@ -850,16 +849,27 @@ def example_usage():
         "https://github.com/Digital-Thought/dtPyAppFramework",
         "https://github.com/qwerltaz/lucerna"
     ]
-    schedule_documentation_metrics(repo_list)
+    schedule_documentation_metrics(repo_list, cvar.data_dir / "example_documentation_metrics.csv")
 
+def run_on_libraries(data_dir: Path, out_path: Path):
+    """
+    Run on full target dataset.
 
-def main():
-    """Run on full target dataset."""
-    with open(cvar.data_dir / "security_libraries_dependents_count.json", "r", encoding="utf-8") as f:
+    :param data_dir: Path to json file with a list of dictionaries containing `repo_url` keys.
+    """
+    with open(data_dir, "r", encoding="utf-8") as f:
         dependents_data = json.load(f)
 
     repo_urls = [item["repo_url"] for item in dependents_data if item.get("repo_url")]
-    schedule_documentation_metrics(repo_urls)
+    schedule_documentation_metrics(repo_urls, out_path)
+
+def main():
+    libs_file_name = Path("licma_security_libraries.json")
+    libs_dir = cvar.data_dir / libs_file_name
+
+    out_path = libs_dir.parent / f"documentation_metrics_{libs_file_name.stem}.csv"
+
+    run_on_libraries(libs_dir, out_path)
 
 
 if __name__ == "__main__":
