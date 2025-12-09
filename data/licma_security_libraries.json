@@ -1,11 +1,11 @@
 [
     {
         "name": "cryptography",
-        "repo_url": ""
+        "repo_url": "https://github.com/pyca/cryptography"
     },
     {
         "name": "M2Crypto",
-        "repo_url": ""
+        "repo_url": "https://git.sr.ht/~mcepl/m2crypto"
     },
     {
         "name": "PyCrypto",
