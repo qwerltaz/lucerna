@@ -35,6 +35,8 @@ class VulnerabilitiesCollect:
         ".virtualenv",
         "pipenv",
         ".pipenv",
+        "Lib",
+        "Scripts",
     }
 
     def __init__(self, repo_url: str):
