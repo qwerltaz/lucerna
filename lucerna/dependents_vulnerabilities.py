@@ -38,6 +38,9 @@ class VulnerabilitiesCollect:
         "lib",
         "scripts",
     }
+    _TEST_DIR_NAMES = {"tests", "__tests__", "test"}
+    _TEST_FILE_PREFIXES = ("test_",)
+    _TEST_FILE_SUFFIXES = ("_test.py", "_tests.py")
 
     def __init__(self, repo_url: str):
         if not isinstance(repo_url, str) or not repo_url:
@@ -76,6 +79,7 @@ class VulnerabilitiesCollect:
                 raise
 
         self._prune_environment_directories()
+        self._prune_test_files()
 
         python_files = list(self.repo_dir.rglob("*.py"))
         if not python_files:
@@ -217,6 +221,54 @@ class VulnerabilitiesCollect:
                 )
             except FileNotFoundError:
                 pass
+
+    def _prune_test_files(self) -> None:
+        test_dirs: list[Path] = []
+        test_files: list[Path] = []
+        for candidate in self.repo_dir.rglob("*"):
+            if any(part == ".git" for part in candidate.parts):
+                continue
+
+            if candidate.is_dir():
+                if candidate == self.repo_dir:
+                    continue
+                if candidate.name.lower() in self._TEST_DIR_NAMES:
+                    test_dirs.append(candidate)
+            elif candidate.suffix == ".py":
+                name = candidate.name.lower()
+                if (
+                        any(name.startswith(prefix) for prefix in self._TEST_FILE_PREFIXES)
+                        or any(name.endswith(suffix) for suffix in self._TEST_FILE_SUFFIXES)
+                ):
+                    test_files.append(candidate)
+
+        for test_dir in sorted(test_dirs, key=lambda path: len(path.parts), reverse=True):
+            try:
+                if test_dir.is_symlink():
+                    test_dir.unlink()
+                else:
+                    shutil.rmtree(test_dir)
+                LOG.debug("Removed test directory %r inside repository %r", test_dir, self.repo_name)
+            except OSError as exc:
+                LOG.warning(
+                    "Failed to remove test directory %r inside repository %r: %s",
+                    test_dir,
+                    self.repo_name,
+                    exc,
+                )
+
+        for test_file in test_files:
+            try:
+                if os.path.exists(test_file):
+                    test_file.unlink()
+                LOG.debug("Removed test file %r inside repository %r", test_file, self.repo_name)
+            except OSError as exc:
+                LOG.warning(
+                    "Failed to remove test file %r inside repository %r: %s",
+                    test_file,
+                    self.repo_name,
+                    exc,
+                )
 
 
 def collect_vulnerabilities() -> None:
