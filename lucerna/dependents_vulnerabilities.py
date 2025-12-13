@@ -268,7 +268,12 @@ class VulnerabilitiesCollect:
                     exc,
                 )
 
-        LOG.debug("Removed test files from repo %s: %s and test directories: %s", self.repo_name, "\n".join(map(str, test_files)),
+        if not (test_files or test_dirs):
+            return
+
+        LOG.debug("Removed test files from repo %s: %s and test directories: %s",
+                  self.repo_name,
+                  "\n".join(map(str, test_files)),
                   "\n".join(map(str, test_dirs)))
 
 
