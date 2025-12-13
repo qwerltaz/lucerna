@@ -208,12 +208,15 @@ class VulnerabilitiesCollect:
                 env_dirs.append(candidate)
 
         for env_dir in env_dirs:
-            shutil.rmtree(env_dir)
-            LOG.debug(
-                "Removed environment directory %r inside repository %r",
-                env_dir,
-                self.repo_name,
-            )
+            try:
+                shutil.rmtree(env_dir)
+                LOG.debug(
+                    "Removed environment directory %r inside repository %r",
+                    env_dir,
+                    self.repo_name,
+                )
+            except FileNotFoundError:
+                pass
 
 
 def collect_vulnerabilities() -> None:
