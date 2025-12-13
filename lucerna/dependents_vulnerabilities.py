@@ -35,8 +35,8 @@ class VulnerabilitiesCollect:
         ".virtualenv",
         "pipenv",
         ".pipenv",
-        "Lib",
-        "Scripts",
+        "lib",
+        "scripts",
     }
 
     def __init__(self, repo_url: str):
@@ -203,7 +203,7 @@ class VulnerabilitiesCollect:
                 continue
             if any(part == ".git" for part in candidate.parts):
                 continue
-            name = candidate.name
+            name = candidate.name.lower()
             if name in self._ENV_DIR_NAMES:
                 env_dirs.append(candidate)
 
