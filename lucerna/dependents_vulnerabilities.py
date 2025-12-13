@@ -248,7 +248,6 @@ class VulnerabilitiesCollect:
                     test_dir.unlink()
                 else:
                     shutil.rmtree(test_dir)
-                LOG.debug("Removed test directory %r inside repository %r", test_dir, self.repo_name)
             except OSError as exc:
                 LOG.warning(
                     "Failed to remove test directory %r inside repository %r: %s",
@@ -261,7 +260,6 @@ class VulnerabilitiesCollect:
             try:
                 if os.path.exists(test_file):
                     test_file.unlink()
-                LOG.debug("Removed test file %r inside repository %r", test_file, self.repo_name)
             except OSError as exc:
                 LOG.warning(
                     "Failed to remove test file %r inside repository %r: %s",
@@ -269,6 +267,9 @@ class VulnerabilitiesCollect:
                     self.repo_name,
                     exc,
                 )
+
+        LOG.debug("Removed test files from repo %s: %s and test directories: %s", self.repo_name, "\n".join(map(str, test_files)),
+                  "\n".join(map(str, test_dirs)))
 
 
 def collect_vulnerabilities() -> None:
