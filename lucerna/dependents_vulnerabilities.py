@@ -203,7 +203,7 @@ class VulnerabilitiesCollect:
                 continue
             if any(part == ".git" for part in candidate.parts):
                 continue
-            name = candidate.name.lower()
+            name = candidate.name
             if name in self._ENV_DIR_NAMES:
                 env_dirs.append(candidate)
 
