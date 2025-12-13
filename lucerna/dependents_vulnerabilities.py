@@ -26,6 +26,17 @@ DATA_DIR_ABSOLUTE = cvar.data_dir.resolve()
 class VulnerabilitiesCollect:
     """Collect vulnerabilities from a GitHub repository."""
 
+    _ENV_DIR_NAMES = {
+        "env",
+        ".env",
+        "venv",
+        ".venv",
+        "virtualenv",
+        ".virtualenv",
+        "pipenv",
+        ".pipenv",
+    }
+
     def __init__(self, repo_url: str):
         if not isinstance(repo_url, str) or not repo_url:
             raise exceptions.InvalidRepositoryURL(
@@ -61,6 +72,8 @@ class VulnerabilitiesCollect:
                     self.repo_dir,
                 )
                 raise
+
+        self._prune_environment_directories()
 
         python_files = list(self.repo_dir.rglob("*.py"))
         if not python_files:
@@ -180,6 +193,25 @@ class VulnerabilitiesCollect:
         )
 
         return len(vulnerabilities)
+
+    def _prune_environment_directories(self) -> None:
+        env_dirs: list[Path] = []
+        for candidate in self.repo_dir.rglob("*"):
+            if not candidate.is_dir() or candidate == self.repo_dir:
+                continue
+            if any(part == ".git" for part in candidate.parts):
+                continue
+            name = candidate.name.lower()
+            if name in self._ENV_DIR_NAMES:
+                env_dirs.append(candidate)
+
+        for env_dir in env_dirs:
+            shutil.rmtree(env_dir)
+            LOG.debug(
+                "Removed environment directory %r inside repository %r",
+                env_dir,
+                self.repo_name,
+            )
 
 
 def collect_vulnerabilities() -> None:
