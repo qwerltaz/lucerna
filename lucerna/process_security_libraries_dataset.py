@@ -1,5 +1,7 @@
 """
-Process the raw security libraries dataset from Google's BigQuery.
+Process the raw security libraries dataset. Accepts a dataset of PyPI libraries from
+Google's BigQuery data warehouse, which is included in `security_libraries_raw.json`
+in the data directory.
 
 Extract GitHub repository URLs from the dataset.
 
@@ -110,8 +112,8 @@ def process_raw(file_name: str, processed_file_name: str):
 
 
 def _fetch_dependents_counts(
-    name: str | None,
-    version: str | None,
+        name: str | None,
+        version: str | None,
 ) -> Dict[str, int] | None:
     """Call deps.dev API to fetch dependent counts for a PyPI package version.
 

@@ -1,3 +1,10 @@
+# About
+
+Are badly documented Python security libraries used less securely? This project uses a static code analysis tool, LICMA,
+to analyze several Python security libraries, focusing on their documentation and usage patterns in open-source
+projects. The goal is to identify potential correlations between the quality of documentation and the security of code
+that uses these libraries.
+
 # Requirements
 
 - docker
@@ -14,4 +21,4 @@
 # Usage
 
 1. Run one of the scripts in `./lucerna` to create a corresponding dataset with `cd lucerna` and
-   `uv run <script_name>.py`. See the scripts' docstrings for info.
+   `uv run <script_name>.py`. See inside the scripts for more information inside docstrings.
