@@ -38,5 +38,13 @@ def sec_lib_dependents_count_table():
     print(dependents_count_df.to_latex())
 
 
+def doc_metrics_table():
+    licma_doc_metrics_path = ".." / cvar.data_dir / "licma_documentation_metrics.csv"
+
+    doc_metrics_df = pd.read_csv(licma_doc_metrics_path).transpose()
+
+    print(doc_metrics_df.to_latex())
+
+
 if __name__ == "__main__":
-    sec_lib_dependents_count_table()
+    doc_metrics_table()
