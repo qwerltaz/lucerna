@@ -6,9 +6,11 @@ import pandas as pd
 
 import cvar
 
-doc_metrics = pd.read_csv(cvar.data_dir / "documentation_metrics_licma_security_libraries.csv")
+doc_metrics = pd.read_csv(cvar.data_dir / "licma_documentation_metrics.csv")
 with open(cvar.data_dir / "vulnerabilities.json", "r", encoding="utf-8") as fh:
     vulnerabilities = json.load(fh)
+
+vulnerabilities.pop("M2Crypto")
 
 avg_misuses = (
     pd.Series({
@@ -30,5 +32,5 @@ doc_cols = [
     # "github_wiki_length", "code_examples_ratio"  # These two have only 0 as values.
 ]
 
-pearson_corr = df[doc_cols].corrwith(df["avg_misuses"])
+pearson_corr = df[doc_cols].corrwith(df["avg_misuses"], method="spearman")
 print(pearson_corr)
