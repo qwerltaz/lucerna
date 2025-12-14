@@ -70,6 +70,9 @@ def dependents_stats():
         if vulnerabilities_summary.at[name, "non-zero"] > 0 else 0
         for name, dependents in vulnerabilities_json.items()
     ]
+    vulnerabilities_summary["total vulnerabilities"] = [
+        sum([dep for dep in dependents.values() if dep]) for dependents in vulnerabilities_json.values()
+    ]
 
     # sort by name
     vulnerabilities_summary = vulnerabilities_summary.sort_index()
@@ -81,4 +84,4 @@ def dependents_stats():
 
 
 if __name__ == "__main__":
-    doc_metrics_table()
+    dependents_stats()
