@@ -39,7 +39,7 @@ class VulnerabilitiesCollect:
         "scripts",
     }
     _TEST_DIR_NAMES = {"tests", "__tests__", "test"}
-    _TEST_FILE_PREFIXES = ("test_",)
+    _TEST_FILE_PREFIXES = ("test_", "tests_")
     _TEST_FILE_SUFFIXES = ("_test.py", "_tests.py")
 
     def __init__(self, repo_url: str):
@@ -273,8 +273,8 @@ class VulnerabilitiesCollect:
 
         LOG.debug("Removed test files from repo %s: %s and test directories: %s",
                   self.repo_name,
-                  "\n".join(map(str, test_files)),
-                  "\n".join(map(str, test_dirs)))
+                  len(test_files),
+                  len(test_dirs))
 
 
 def collect_vulnerabilities() -> None:
